@@ -1,28 +1,37 @@
-# Kalaatma Pictures — Web Admin
+# Kalaatma Pictures — BMS (Business Management System)
 
-Web admin untuk landing page booking Kalaatma ([`form-booking`](https://github.com/marselcerebrum-jpg/form-booking)):
-dashboard, kelola menu (layanan, grup paket, paket, add-on), syarat & ketentuan, pengaturan pembayaran/kontak, dan log aktivitas admin.
+Web admin Kalaatma: Dashboard, Booking, Joblist (kanban), Lead, Completed Client, Freelancer, Paket & Harga,
+**Menu Landing Page**, Keuangan/Kas, Kalender, dan **Log Aktivitas**. Terhubung dengan landing page booking
+([`form-booking`](https://github.com/marselcerebrum-jpg/form-booking)) lewat satu project Supabase.
 
-Dibangun dengan Vite (HTML/CSS/JS murni) + Supabase, hosting Vercel.
+Vite (HTML/CSS/JS murni) + Supabase, hosting Vercel.
 
-## Bagaimana admin & landing page terhubung
+## Alur integrasi
 
 ```
- web-admin-booking ──(simpan menu, login, log)──▶  Supabase  ◀──(baca menu, kirim booking)── form-booking
-                                                 app_config · admin_activity · bookings · admins
+ Pelanggan ── landing page (form-booking) ──┐ baca menu (app_config)
+                                             │ kirim booking (bookings, status NEW)
+                                             ▼
+                                         SUPABASE
+                                             ▲
+ Admin ───── BMS (web-admin-booking) ────────┘ login → kelola semua data
 ```
 
-- Menu disimpan sebagai satu dokumen JSON di tabel `app_config` (key `catalog`). Landing page membacanya setiap kali dibuka.
-- Format dokumen ditetapkan di `src/shared/catalog.js`. File ini **identik** di kedua repo, jadi ubah di keduanya bila formatnya berubah.
-- Bila dua admin mengedit bersamaan, perubahan yang kalah tidak menimpa diam-diam: admin diberi tahu dan data terbaru dimuat ulang.
-- Log aktivitas di Supabase tidak bisa diubah atau dihapus (jejak audit).
+| Kejadian | Akibatnya |
+| --- | --- |
+| Pelanggan booking di landing page | Masuk ke BMS: Joblist kolom **Booking** (label "Baru · Website"), notifikasi lonceng, Dashboard |
+| Admin ubah harga di **Paket & Harga** atau **Menu Landing Page** | Landing page langsung memakai harga/menu baru (satu sumber harga) |
+| Admin sembunyikan layanan/paket/add-on | Hilang dari landing page; booking ke paket itu ditolak server |
+| Admin ubah DP %, rekening, WhatsApp | Dipakai landing page, perhitungan BMS, dan invoice |
+| Admin catat pembayaran | Otomatis tercatat di **Keuangan / Kas** (trigger database) |
+| Status booking jadi CONFIRMED dst. | Nomor invoice terbit otomatis |
+| Setiap perubahan oleh admin | Tercatat di **Log Aktivitas** (tidak bisa diubah/dihapus) |
 
-## Mode
-
-| Mode | Kapan | Perilaku |
-| --- | --- | --- |
-| **Lokal** | `VITE_SUPABASE_*` kosong | Tanpa login. Perubahan hanya di browser ini dan **tidak** tampil di landing page. Untuk mencoba tampilan. |
-| **Supabase** | `VITE_SUPABASE_*` diisi | Login admin, data di Supabase, langsung dipakai landing page. |
+Keamanan di server (bukan hanya di tampilan):
+- Harga booking **dihitung ulang dari menu** oleh database — pelanggan tidak bisa mengirim harga sendiri.
+- Pelanggan (anon) hanya bisa *mengirim* booking dan hanya kolom form; tidak bisa membaca data apa pun selain menu.
+- Semua data BMS hanya bisa diakses akun yang terdaftar di tabel `admins`.
+- Dua admin mengedit menu bersamaan tidak saling menimpa diam-diam.
 
 ## Menjalankan lokal
 
@@ -32,26 +41,32 @@ npm run dev        # http://localhost:5174 (landing page di 5173)
 npm run build
 ```
 
-## Menghubungkan ke Supabase (nanti)
+Tanpa env Supabase, halaman login menampilkan **Lihat mode demo** (data contoh di memori, tidak tersimpan).
 
-1. Buat project Supabase, lalu jalankan `supabase/schema.sql` di SQL Editor.
-2. Buat akun admin di Authentication → Users, lalu daftarkan:
+## Setup Supabase
+
+1. Buat project Supabase, buka **SQL Editor**, jalankan `supabase/schema.sql` (aman dijalankan ulang).
+2. **Authentication → Users → Add user** untuk tiap admin (email + password), lalu daftarkan:
    ```sql
    insert into public.admins (user_id, name)
-   select id, 'Nama Admin' from auth.users where email = 'admin@contoh.com';
+   select id, 'Atep' from auth.users where email = 'admin@kalaatma.id';
    ```
-3. Isi env di kedua project Vercel (nilai Supabase sama):
-   - admin: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_LANDING_URL`
-   - landing: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-4. Masuk ke admin. Penyimpanan pertama mengisi menu ke database. Sampai saat itu landing page memakai pricelist bawaan.
+3. Isi env (Vercel → Project Settings → Environment Variables), **nilai Supabase sama** di kedua project:
+   - BMS: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_LANDING_URL`
+   - Landing page: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+4. Login ke BMS. Simpan pertama di Menu / Paket & Harga mengisi menu ke database; sebelum itu landing page memakai pricelist bawaan.
+5. Opsional: isi HPP tiap paket di **Paket & Harga** supaya profit di Dashboard akurat.
 
 ## Struktur
 
 | File | Isi |
 | --- | --- |
-| `index.html`, `src/admin.css` | Tampilan admin, login |
-| `src/main.js` | Halaman & logika admin |
-| `src/data/store.js` | Penyimpanan: Supabase atau lokal |
-| `src/shared/catalog.js` | Kontrak format menu (sama dengan landing page) |
+| `index.html`, `src/styles.css` | Shell & tampilan BMS |
+| `src/main.js` | Titik masuk, mendaftarkan halaman |
+| `src/core.js` | Helper, state, data layer (Supabase ⇄ demo), log aktivitas, auth, router |
+| `src/pages/*.js` | Satu file per halaman; `detail.js` = drawer booking, invoice & PDF, notifikasi |
+| `src/stages.js`, `src/datepicker.js` | Tahap Joblist, kategori, label · pemilih tanggal |
+| `src/demo.js` | Data mode demo |
+| `src/shared/catalog.js` | Kontrak format menu — **identik** dengan repo landing page |
 | `src/shared/catalog-default.js` | Pricelist bawaan Kalaatma 2026 |
-| `supabase/schema.sql` | Tabel & aturan akses (RLS) |
+| `supabase/schema.sql` | Tabel, view, trigger, dan aturan akses |
