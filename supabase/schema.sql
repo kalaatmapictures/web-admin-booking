@@ -325,7 +325,7 @@ create table if not exists public.admin_activity (
 create index if not exists admin_activity_at_idx on public.admin_activity (at desc);
 
 -- ---------------------------------------------------------------------
--- VIEW — kolom turunan, rumusnya sama dengan derive() di src/core.js
+-- VIEW — kolom turunan (total, DP, status bayar, crew, profit) untuk BMS
 -- security_invoker: view tunduk pada RLS tabel di bawahnya.
 -- ---------------------------------------------------------------------
 create or replace view public.v_bookings_board with (security_invoker = true) as

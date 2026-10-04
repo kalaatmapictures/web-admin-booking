@@ -41,7 +41,7 @@ npm run dev        # http://localhost:5174 (landing page di 5173)
 npm run build
 ```
 
-Tanpa env Supabase, halaman login menampilkan **Lihat mode demo** (data contoh di memori, tidak tersimpan).
+BMS selalu memakai data asli di Supabase. Tanpa env Supabase, halaman login menampilkan petunjuk pengisian env dan tombol Masuk dinonaktifkan.
 
 ## Setup Supabase
 
@@ -63,10 +63,9 @@ Tanpa env Supabase, halaman login menampilkan **Lihat mode demo** (data contoh d
 | --- | --- |
 | `index.html`, `src/styles.css` | Shell & tampilan BMS |
 | `src/main.js` | Titik masuk, mendaftarkan halaman |
-| `src/core.js` | Helper, state, data layer (Supabase ⇄ demo), log aktivitas, auth, router |
+| `src/core.js` | Helper, state, data layer Supabase, log aktivitas, auth, router |
 | `src/pages/*.js` | Satu file per halaman; `detail.js` = drawer booking, invoice & PDF, notifikasi |
 | `src/stages.js`, `src/datepicker.js` | Tahap Joblist, kategori, label · pemilih tanggal |
-| `src/demo.js` | Data mode demo |
 | `src/shared/catalog.js` | Kontrak format menu — **identik** dengan repo landing page |
 | `src/shared/catalog-default.js` | Pricelist bawaan Kalaatma 2026 |
 | `supabase/schema.sql` | Tabel, view, trigger, dan aturan akses |

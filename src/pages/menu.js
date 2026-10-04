@@ -5,7 +5,7 @@
    langsung dibaca landing page.
    ===================================================================== */
 import { $, $$, S, RENDER, rp, esc, toast, money, moneyVal, openDrawer, closeDrawer,
-         confirmBox, commitCatalog, resetDemoCatalog, logAct, buildPackages } from '../core.js';
+         confirmBox, commitCatalog, logAct, buildPackages } from '../core.js';
 import { defaultCatalog, isCatalog, publicCatalog } from '../shared/catalog.js';
 import { LANDING_URL } from '../data/config.js';
 
@@ -214,7 +214,6 @@ RENDER.menu = () => {
         <a class="btn soft sm" href="${LANDING_URL}" target="_blank" rel="noopener" style="text-decoration:none">Lihat landing page ↗</a>
       </div>
     </div>
-    ${S.mode === 'demo' ? '<div class="banner">Mode demo — perubahan menu hanya untuk dicoba dan tidak tampil di landing page.</div>' : ''}
     <div id="mnBody"></div>`;
   $$('[data-mntab]').forEach(b => b.onclick = () => { MN.tab = b.dataset.mntab; RENDER.menu(); });
   ({svc:renderServices, terms:renderTerms, settings:renderSettings})[MN.tab]();
@@ -555,7 +554,7 @@ function renderSettings(){
   };
   $('#mnReset').onclick = async () => {
     if(!await confirmBox('Kembalikan menu ke bawaan?', 'Seluruh layanan, paket, add-on, S&K, dan pengaturan pembayaran diganti pricelist bawaan.', 'Reset menu')) return;
-    if(S.mode === 'live') S.catalog = defaultCatalog(); else resetDemoCatalog();
+    S.catalog = defaultCatalog();
     MN.svc = null;
     commit({action:'system', entity:'Menu', target:'Reset menu ke bawaan'}, 'Menu dikembalikan ke bawaan');
   };

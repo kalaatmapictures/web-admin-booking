@@ -1,12 +1,10 @@
 /* =====================================================================
    KALAATMA BMS — inti: helper, state, data layer, auth, router.
-   Data layer berjalan di dua mode dengan bentuk data identik:
-   • live : Supabase (login admin) — terhubung dengan landing page
-   • demo : data contoh di memori, tidak tersimpan
+   Semua data dibaca & ditulis ke Supabase (login admin wajib),
+   database yang sama dengan landing page.
    ===================================================================== */
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, supabaseReady } from './data/supabase.js';
 import { CATALOG_KEY, defaultCatalog, isCatalog } from './shared/catalog.js';
-import { makeDemo } from './demo.js';
 import { showNotifications } from './pages/detail.js';
 
 export const CONFIGURED = supabaseReady();
@@ -73,13 +71,12 @@ export const inRange = (date, r) => !date || ((!r.from || date >= r.from) && (!r
    STATE
    ===================================================================== */
 export const S = {
-  mode:'demo', page:'dashboard', data:{},
+  page:'dashboard', data:{},
   catalog:null, catalogVersion:null,   // menu landing page (satu sumber harga paket)
-  admin:{ name:'Demo Admin', email:null }
+  admin:{ name:'Admin', email:null }
 };
 window.S = S;
 export const RENDER = {};
-let DEMO = null;
 
 /* kategori = nama layanan di menu landing page */
 export const categories = () => {
@@ -110,46 +107,6 @@ export async function api(path, {method='GET', body, prefer}={}){
   return txt ? JSON.parse(txt) : null;
 }
 
-/* Kolom turunan — persis sama dengan view v_bookings_board di SQL,
-   supaya mode demo dan mode Supabase menampilkan angka yang sama. */
-export function derive(b, ctx){
-  const ph = ctx.freelancers.find(f=>f.id===b.photographer_id);
-  const vg = ctx.freelancers.find(f=>f.id===b.videographer_id);
-  const eff = b.custom_package_price ?? b.package_price ?? 0;
-  const subtotal = eff + (b.add_on_price||0) + (b.additional_charge||0) + (b.extra_time_charge||0) + (b.transport_charge||0) + (b.other_charge||0);
-  const total = subtotal - (b.discount||0);
-  const dp = dpPercent() / 100;
-  const paid = ctx.payments.filter(p=>p.booking_id===b.id)
-                 .reduce((n,p)=> n + (p.kind==='REFUND' ? -p.amount : p.amount), 0);
-  const crewCost = ctx.crewFees.filter(f=>f.booking_id===b.id).reduce((n,f)=>n+f.fee,0);
-  const crew = (!b.needs_photographer || b.photographer_id) && (!b.needs_videographer || b.videographer_id) ? 'COMPLETE'
-             : (b.photographer_id || b.videographer_id) ? 'PARTIAL' : 'NOT_ASSIGNED';
-  const overdue = !!b.payment_due_date && b.payment_due_date < today() && paid < total;
-  const delivMissing = !b.photo_drive_link && !b.video_drive_link && !b.final_file_link;
-  return {
-    ...b,
-    client_display: b.client_name || [b.bride_name,b.groom_name].filter(Boolean).join(' & ') || b.booking_id,
-    effective_package_price: eff, master_reference_price: b.package_price,
-    subtotal, total_invoice: total,
-    dp_amount: Math.round(total*dp), paid_amount: paid, remaining_payment: total - paid,
-    payment_status: paid<=0 ? 'UNPAID' : paid>=total ? 'FULLY_PAID' : paid>=total*dp ? 'DP_PAID' : 'PARTIALLY_PAID',
-    payment_overdue: overdue,
-    crew_cost: crewCost, profit: total - (b.hpp_snapshot||0) - crewCost,
-    crew_status: crew,
-    photographer_name: ph?.name||null, photographer_wa: ph?.whatsapp||null, photographer_email: ph?.email||null,
-    videographer_name: vg?.name||null, videographer_wa: vg?.whatsapp||null, videographer_email: vg?.email||null,
-    delivery_missing: delivMissing,
-    gcal_synced: !!b.gcal_event_id,
-    needs_attention: crew!=='COMPLETE' || overdue || (['EVENT_DONE','DELIVERED'].includes(b.status) && delivMissing)
-  };
-}
-export function deriveLead(l){
-  const st = ['WON','LOST'].includes(l.status) ? 'CLOSED'
-    : !l.follow_up_date ? 'NONE'
-    : l.follow_up_date < today() ? 'OVERDUE'
-    : l.follow_up_date === today() ? 'TODAY' : 'SAFE';
-  return {...l, follow_up_state: st};
-}
 /* kolom time Postgres datang sebagai "09:00:00" — tampilkan "09:00" */
 const hhmm = t => t ? String(t).slice(0,5) : t;
 const normBooking = b => ({...b, session_time:hhmm(b.session_time), session_end_time:hhmm(b.session_end_time), labels:b.labels||[]});
@@ -170,7 +127,7 @@ export function buildPackages(){
 }
 
 export async function loadAll(){
-  if(S.mode === 'live'){
+  {
     const [cfg, bookings, freelancers, payments, costs, leads, clients, transactions, activity] = await Promise.all([
       api(`app_config?key=eq.${CATALOG_KEY}&select=value,updated_at`),
       api('v_bookings_board?select=*'), api('freelancers?select=*&order=name'),
@@ -183,15 +140,6 @@ export async function loadAll(){
     S.catalogVersion = cfg[0]?.updated_at ?? null;
     S.data = {bookings: bookings.map(normBooking), freelancers, payments, leads, clients, transactions, crewFees:[], activity,
               packageCosts: Object.fromEntries(costs.map(c => [c.package_id, c.hpp_estimate]))};
-  } else {
-    if(!DEMO){ DEMO = makeDemo(); S.catalog = defaultCatalog(); S.catalogVersion = null; }
-    const d = DEMO;
-    S.data = {
-      bookings: d.bookings.map(b => derive(b, d)),
-      freelancers: d.freelancers, payments: d.payments, packageCosts: d.packageCosts,
-      leads: d.leads.map(deriveLead), clients: d.clients, transactions: d.transactions, crewFees: d.crewFees,
-      activity: d.activity
-    };
   }
   buildPackages();
   refreshBell();
@@ -236,52 +184,27 @@ export function describe(before, patch){
 export async function logAct(action, entity, target, detail){
   const row = { actor:S.admin.name, action, entity, target:String(target||'—'), detail:detail || null };
   try{
-    if(S.mode === 'live'){
-      const [saved] = await api('admin_activity', {method:'POST', body:row, prefer:'return=representation'});
-      S.data.activity.unshift(saved);
-    } else {
-      S.data.activity.unshift({ id:'act-'+Date.now(), at:new Date().toISOString(), ...row });
-    }
+    const [saved] = await api('admin_activity', {method:'POST', body:row, prefer:'return=representation'});
+    S.data.activity.unshift(saved);
   }catch(e){ console.warn('[Kalaatma] log aktivitas gagal:', e.message); }
 }
 
 /* ---------- tulis data (semua perubahan tercatat di log) ---------- */
 export async function saveBooking(id, patch){
   const before = S.data.bookings.find(b=>b.id===id);
-  if(S.mode === 'live'){
-    await api('bookings?id=eq.' + id, {method:'PATCH', body:patch, prefer:'return=minimal'});
-    const fresh = await api('v_bookings_board?select=*&id=eq.' + id);
-    const i = S.data.bookings.findIndex(b=>b.id===id);
-    if(i>-1 && fresh[0]) S.data.bookings[i] = normBooking(fresh[0]);
-  } else {
-    const raw = DEMO.bookings.find(b=>b.id===id);
-    Object.assign(raw, patch);
-    if(!raw.invoice_number && ['CONFIRMED','BOOKED','EVENT_DONE','DELIVERED','COMPLETED'].includes(raw.status)){
-      DEMO.invSeq++; raw.invoice_number = 'INV-KAL-' + today().slice(0,7).replace('-','') + '-' + String(DEMO.invSeq).padStart(3,'0');
-    }
-    const i = S.data.bookings.findIndex(b=>b.id===id);
-    S.data.bookings[i] = derive(raw, DEMO);
-  }
+  await api('bookings?id=eq.' + id, {method:'PATCH', body:patch, prefer:'return=minimal'});
+  const fresh = await api('v_bookings_board?select=*&id=eq.' + id);
+  const i = S.data.bookings.findIndex(b=>b.id===id);
+  if(i>-1 && fresh[0]) S.data.bookings[i] = normBooking(fresh[0]);
   const detail = describe(before, patch);
   if(detail) await logAct(patch.status && patch.status !== before?.status ? 'status' : 'update', 'Booking', before?.client_display, detail);
   refreshBell();
 }
-const PAY_TX = {DP:['IN','DP Booking'], INSTALLMENT:['IN','Cicilan'], SETTLEMENT:['IN','Pelunasan'], REFUND:['OUT','Refund']};
 export async function addPayment(bookingId, row){
   const b = S.data.bookings.find(x => x.id === bookingId);
-  if(S.mode === 'live'){
-    // trigger di database mencatat transaksi kas secara otomatis
-    await api('payments', {method:'POST', body:{booking_id:bookingId, ...row}, prefer:'return=minimal'});
-    await loadAll();
-  } else {
-    const p = {id:'pay-'+Math.random().toString(36).slice(2,9), booking_id:bookingId, ...row};
-    DEMO.payments.push(p);
-    const [kind, category] = PAY_TX[row.kind] || ['IN','Pembayaran'];
-    DEMO.transactions.unshift({id:'tx-'+Math.random().toString(36).slice(2,9), kind, amount:row.amount, category,
-      description:`${category} — ${b?.client_display||''}`, booking_id:bookingId, payment_id:p.id, occurred_on:row.paid_at});
-    const raw = DEMO.bookings.find(x => x.id === bookingId);
-    S.data.bookings[S.data.bookings.findIndex(x => x.id === bookingId)] = derive(raw, DEMO);
-  }
+  // trigger di database mencatat transaksi kas secara otomatis
+  await api('payments', {method:'POST', body:{booking_id:bookingId, ...row}, prefer:'return=minimal'});
+  await loadAll();
   await logAct('create', 'Pembayaran', b?.client_display, `${row.kind} ${rp(row.amount)}${row.method ? ' · ' + row.method : ''}`);
   refreshBell();
 }
@@ -290,24 +213,21 @@ const rowName = (store, r) => r ? (r.name || r.description || r.client_display |
 export async function saveRow(table, id, patch, store){
   const arr = S.data[store]; const i = arr.findIndex(r=>r.id===id);
   const before = i > -1 ? {...arr[i]} : null;
-  if(S.mode === 'live') await api(table + '?id=eq.' + id, {method:'PATCH', body:patch, prefer:'return=minimal'});
+  await api(table + '?id=eq.' + id, {method:'PATCH', body:patch, prefer:'return=minimal'});
   if(i>-1) Object.assign(arr[i], patch);
   const detail = describe(before, patch);
   if(detail) await logAct('update', ENTITY[store] || table, rowName(store, before), detail);
 }
 export async function deleteRow(table, id, store){
   const before = S.data[store].find(r => r.id === id);
-  if(S.mode === 'live') await api(`${table}?id=eq.${id}`, {method:'DELETE', prefer:'return=minimal'});
+  await api(`${table}?id=eq.${id}`, {method:'DELETE', prefer:'return=minimal'});
   const i = S.data[store].findIndex(r => r.id === id); if(i > -1) S.data[store].splice(i, 1);
   await logAct('delete', ENTITY[store] || table, rowName(store, before),
     before?.amount ? `${before.kind === 'OUT' ? 'Pengeluaran' : 'Pemasukan'} ${rp(before.amount)}` : null);
 }
 export async function insertRow(table, row, store){
-  if(S.mode === 'live'){ await api(table, {method:'POST', body:row, prefer:'return=minimal'}); await loadAll(); }
-  else {
-    const local = {id: table.slice(0,3)+'-'+Math.random().toString(36).slice(2,9), created_at:new Date().toISOString(), ...row};
-    S.data[store].unshift(store === 'leads' ? deriveLead(local) : local);
-  }
+  await api(table, {method:'POST', body:row, prefer:'return=minimal'});
+  await loadAll();
   await logAct('create', ENTITY[store] || table, rowName(store, row),
     row.amount ? `${row.kind === 'OUT' ? 'Pengeluaran' : 'Pemasukan'} ${rp(row.amount)}` : null);
 }
@@ -316,7 +236,6 @@ export async function insertRow(table, row, store){
 /* { ok:true } | { ok:false, conflict:true } | { ok:false, error } */
 export async function saveCatalog(){
   if(!isCatalog(S.catalog)) return {ok:false, error:'Format menu tidak valid'};
-  if(S.mode !== 'live') return {ok:true};
   try{
     if(S.catalogVersion === null){
       const [row] = await api('app_config', {method:'POST', body:{key:CATALOG_KEY, value:S.catalog}, prefer:'return=representation'});
@@ -334,7 +253,6 @@ export async function saveCatalog(){
   }
 }
 export async function reloadCatalog(){
-  if(S.mode !== 'live') return;
   const cfg = await api(`app_config?key=eq.${CATALOG_KEY}&select=value,updated_at`);
   S.catalog = cfg[0] && isCatalog(cfg[0].value) ? cfg[0].value : defaultCatalog();
   S.catalogVersion = cfg[0]?.updated_at ?? null;
@@ -357,9 +275,8 @@ export async function commitCatalog(log, msg = 'Menu tersimpan'){
     buildPackages();
   }
 }
-export function resetDemoCatalog(){ S.catalog = defaultCatalog(); }
 export async function saveCost(packageId, hpp){
-  if(S.mode === 'live') await api('package_costs', {method:'POST', body:{package_id:packageId, hpp_estimate:hpp}, prefer:'resolution=merge-duplicates,return=minimal'});
+  await api('package_costs', {method:'POST', body:{package_id:packageId, hpp_estimate:hpp}, prefer:'resolution=merge-duplicates,return=minimal'});
   S.data.packageCosts[packageId] = hpp;
   buildPackages();
 }
@@ -383,9 +300,8 @@ function showLoginError(msg){
 export function initAuth(){
   $('#cfgNote').textContent = CONFIGURED
     ? 'Masuk dengan akun admin yang terdaftar di Supabase.'
-    : 'Supabase belum dikonfigurasi — isi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY. Sementara bisa melihat mode demo.';
+    : 'Supabase belum dikonfigurasi — isi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di Vercel, lalu Redeploy.';
   $('#loginBtn').disabled = !CONFIGURED;
-  $('#demoBtn').hidden = CONFIGURED;
 
   const login = async () => {
     showLoginError('');
@@ -395,7 +311,6 @@ export function initAuth(){
       if(error) throw new Error(error.message === 'Invalid login credentials' ? 'Email atau password salah.' : error.message);
       const msg = await resolveAdmin();
       if(msg) throw new Error(msg);
-      S.mode = 'live';
       $('#liPass').value = '';
       await start();
     }catch(e){ showLoginError(e.message); }
@@ -403,10 +318,8 @@ export function initAuth(){
   };
   $('#loginBtn').onclick = login;
   $('#liPass').addEventListener('keydown', e => { if(e.key === 'Enter') login(); });
-  $('#demoBtn').onclick = () => { S.mode='demo'; S.admin = {name:'Demo Admin', email:null}; start(); };
   $('#logoutBtn').onclick = async () => {
-    if(S.mode === 'live') await sb.auth.signOut();
-    S.mode = 'demo';
+    await sb.auth.signOut();
     $('#app').classList.remove('on'); $('#login').style.display='grid';
   };
 
@@ -418,7 +331,6 @@ export function initAuth(){
     try{
       const msg = await resolveAdmin();
       if(msg){ showLoginError(msg === 'login' ? '' : msg); return; }
-      S.mode = 'live';
       await start();
     }catch(e){ showLoginError('Gagal memeriksa sesi: ' + e.message); }
   })();
@@ -430,9 +342,7 @@ async function start(){
   $('#login').style.display = 'none';
   $('#app').classList.add('on');
   $('#whoName').textContent = S.admin.name;
-  $('#whoMode').textContent = S.mode === 'live' ? 'Terhubung Supabase' : 'Mode demo';
-  $('#modeBanner').innerHTML = S.mode === 'demo'
-    ? `<div class="banner"><b>Mode demo.</b>&nbsp;Data contoh, tidak tersimpan dan tidak terhubung ke landing page. Isi kredensial Supabase untuk memakai data asli.</div>` : '';
+  $('#whoMode').textContent = 'Terhubung Supabase';
   buildNav();
   go(S.page);
 }

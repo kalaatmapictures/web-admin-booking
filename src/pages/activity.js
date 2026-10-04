@@ -70,7 +70,7 @@ RENDER.activity = () => {
   $('#page').innerHTML = `
     <div class="grid g3" style="margin-bottom:14px">
       <div class="card kpi accent"><div class="lbl">Aktivitas 7 hari</div><div class="val">${week}</div><div class="cap">perubahan oleh admin</div></div>
-      <div class="card kpi"><div class="lbl">Total tercatat</div><div class="val">${all.length}</div><div class="cap">${S.mode === 'live' ? '500 catatan terakhir' : 'sesi demo'}</div></div>
+      <div class="card kpi"><div class="lbl">Total tercatat</div><div class="val">${all.length}</div><div class="cap">500 catatan terakhir</div></div>
       <div class="card kpi"><div class="lbl">Admin aktif</div><div class="val">${admins}</div><div class="cap">orang</div></div>
     </div>
     <div class="card" style="margin-bottom:14px">
