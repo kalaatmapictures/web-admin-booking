@@ -1,9 +1,12 @@
 /* DASHBOARD (brief #13, #14, #17) + aktivitas admin terbaru */
-import { $, $$, S, F, RENDER, rp, esc, range, inRange, chipbar, customRange, categories, go } from '../core.js';
+import { $, $$, S, F, RENDER, rp, esc, range, inRange, categories, go } from '../core.js';
+import { normPeriod, periodButtons, bindPeriod, periodLabel } from '../datepicker.js';
 import { activityFeed } from './activity.js';
 
 RENDER.dashboard = () => {
-  const f = F.dash, r = range(f.date, f.custom);
+  const f = F.dash;
+  normPeriod(f);
+  const r = range(f.date, f.custom);
   const CATEGORIES = categories();
   if(f.product !== 'All' && !CATEGORIES.includes(f.product)) f.product = 'All';
   const all = S.data.bookings.filter(b => b.status !== 'CANCELLED');
@@ -46,15 +49,14 @@ RENDER.dashboard = () => {
     off += frac*circ; return seg;
   }).join('');
 
-  $('#pgSub').textContent = `${f.product} · ${f.date==='custom' ? (r.from||'—')+' s/d '+(r.to||'—') : ({today:'Hari ini',week:'Minggu ini',month:'Bulan ini',year:'Tahun ini',all:'Semua periode'}[f.date])}`;
+  $('#pgSub').textContent = `${f.product === 'All' ? 'Semua product' : f.product} · ${periodLabel(f)}`;
 
   $('#page').innerHTML = `
-    <div class="card" style="margin-bottom:14px">
-      <div class="flabel">Product</div>
-      ${chipbar([{v:'All',l:'All'},...CATEGORIES.map(c=>({v:c,l:c}))], f.product, v=>{f.product=v;RENDER.dashboard();})}
-      <div class="flabel" style="margin-top:16px">Periode</div>
-      ${chipbar([{v:'today',l:'Today'},{v:'week',l:'This Week'},{v:'month',l:'This Month'},{v:'year',l:'This Year'},{v:'all',l:'Semua'},{v:'custom',l:'Custom'}], f.date, v=>{f.date=v;RENDER.dashboard();}, true)}
-      ${f.date==='custom' ? '<div style="margin-top:10px">'+customRange(f.custom, c=>{f.custom=c;RENDER.dashboard();})+'</div>' : ''}
+    <div class="bk-bar">
+      <label class="selchip"><span>Product</span><select id="dashProduct" aria-label="Product">
+        ${['All', ...CATEGORIES].map(c => `<option value="${esc(c)}" ${c===f.product?'selected':''}>${c==='All' ? 'Semua product' : esc(c)}</option>`).join('')}
+      </select></label>
+      ${periodButtons('dash', f)}
     </div>
 
     <div class="grid g4">
@@ -110,6 +112,8 @@ RENDER.dashboard = () => {
     <div class="card">${activityFeed(S.data.activity.slice(0, 6))}</div>`;
 
   $$('[data-view]').forEach(b => b.onclick = () => { F.dash.product = b.dataset.view; RENDER.dashboard(); });
+  $('#dashProduct').onchange = e => { f.product = e.target.value; RENDER.dashboard(); };
+  bindPeriod('dash', f, RENDER.dashboard);
   $$('[data-att]').forEach(b => b.onclick = () => {
     const k = b.dataset.att;
     F.booking.date = 'all';

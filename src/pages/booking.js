@@ -2,12 +2,11 @@
 import { $, $$, S, F, RENDER, rp, esc, today, range, inRange, fmtDate, timeRange,
          crewBadge, statusBadge, payBadge, empty } from '../core.js';
 import { bookingDrawer, confirmDeleteBooking } from './detail.js';
-import { calLabel, openCalendar } from '../datepicker.js';
+import { normPeriod, periodButtons, bindPeriod } from '../datepicker.js';
 
 const SORTS = [['nearest','Tanggal terdekat'],['farthest','Tanggal terjauh'],['newest','Terbaru'],['oldest','Terlama']];
 const CREWS = [['all','Semua crew status'],['COMPLETE','Complete'],['PARTIAL','Partial'],['NOT_ASSIGNED','Not Assigned'],
                ['incomplete','Belum lengkap'],['attention','Needs Attention']];
-const CAL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>';
 const selOpts = (list, v) => list.map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${l}</option>`).join('');
 
 const TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
@@ -15,7 +14,7 @@ const TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 RENDER.booking = () => {
   const f = F.booking;
   // filter waktu hanya "Bulan ini" atau "Custom"; nilai lain (mis. dari Dashboard) = semua tanggal
-  if(!['month','custom'].includes(f.date) || (f.date === 'custom' && !f.custom.from && !f.custom.to)) f.date = 'all';
+  normPeriod(f);
   const r = range(f.date, f.custom);
   let rows = S.data.bookings.filter(b => f.date==='all' || inRange(b.session_date, r));
   if(f.crew === 'attention')       rows = rows.filter(b=>b.needs_attention);
@@ -40,12 +39,7 @@ RENDER.booking = () => {
 
   $('#page').innerHTML = `
     <div class="bk-bar">
-      <div class="chips">
-        <button class="chip ${f.date==='month'?'on':''}" id="bkMonth">Bulan ini</button>
-        <button class="datebtn ${f.date==='custom'?'on':''}" id="bkCustom">${CAL_ICON}
-          ${f.date==='custom' ? calLabel(f.custom.from, f.custom.to, f.custom.label) : 'Custom'}
-          ${f.date==='custom' ? '<span class="x" data-clear>✕</span>' : ''}</button>
-      </div>
+      ${periodButtons('bk', f)}
       <label class="selchip"><span>Urutkan</span><select id="bkSort" aria-label="Urutkan">${selOpts(SORTS, f.sort)}</select></label>
       <label class="selchip"><span>Crew</span><select id="bkCrew" aria-label="Crew status">${selOpts(CREWS, f.crew)}</select></label>
       <label class="bk-req">
@@ -75,13 +69,7 @@ RENDER.booking = () => {
       </tbody></table></div></div>` : empty('Tidak ada booking','Coba longgarkan filternya.')}`;
 
   $('#reqCrew').onchange = e => f.requireCrew = e.target.checked;
-  $('#bkMonth').onclick = () => { f.date = f.date === 'month' ? 'all' : 'month'; RENDER.booking(); };
-  $('#bkCustom').onclick = e => {
-    if(e.target.hasAttribute('data-clear')){ f.date = 'all'; f.custom = {}; return RENDER.booking(); }
-    openCalendar({from:f.custom.from, to:f.custom.to, label:f.custom.label, onApply: c => {
-      f.custom = c; f.date = (c.from || c.to) ? 'custom' : 'all'; RENDER.booking();
-    }});
-  };
+  bindPeriod('bk', f, RENDER.booking);
   $('#bkSort').onchange = e => { f.sort = e.target.value; RENDER.booking(); };
   $('#bkCrew').onchange = e => { f.crew = e.target.value; RENDER.booking(); };
   $$('[data-b]').forEach(tr => tr.onclick = () => bookingDrawer(tr.dataset.b));
