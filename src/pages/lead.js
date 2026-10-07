@@ -1,7 +1,7 @@
 /* LEAD (brief #1B) — calon client yang belum booking (DM Instagram, WhatsApp,
    referral, …). Diinput manual oleh admin; status & follow-up dikelola di sini. */
 import { $, $$, S, F, RENDER, rp, esc, range, inRange, fmtDate, today, toast, empty, money, moneyVal,
-         openModal, closeModal, confirmBox, api, logAct, describe, categories } from '../core.js';
+         openModal, closeModal, confirmBox, api, logAct, describe, categories, searchBox, bindSearch, matchQuery } from '../core.js';
 import { normPeriod, periodButtons, bindPeriod, dISO } from '../datepicker.js';
 
 const SORTS = [['newest','Lead terbaru'],['oldest','Lead terlama'],['fnear','Follow-up terdekat'],['flate','Follow-up terlambat']];
@@ -34,6 +34,7 @@ RENDER.lead = () => {
   let rows = S.data.leads.filter(l => f.date==='all' || inRange((l.created_at||'').slice(0,10), r));
   const inPeriod = rows;
   if(f.status !== 'ALL') rows = rows.filter(l => l.status === f.status);
+  if(f.q) rows = rows.filter(l => matchQuery(f.q, [l.name, l.email, l.category, l.source, l.notes, statusOf(l.status).label], [l.whatsapp]));
   const rank = {OVERDUE:0, TODAY:1, SAFE:2, NONE:3, CLOSED:4};
   const sorters = {
     newest: (a,b)=>(b.created_at||'').localeCompare(a.created_at||''),
@@ -60,6 +61,7 @@ RENDER.lead = () => {
     </div>
 
     <div class="bk-bar">
+      ${searchBox('ldQ', f, 'Cari nama, WA, sumber, catatan…')}
       ${periodButtons('ld', f)}
       <label class="selchip"><span>Status</span><select id="ldStatus" aria-label="Status">
         <option value="ALL" ${f.status==='ALL'?'selected':''}>Semua</option>
@@ -86,9 +88,10 @@ RENDER.lead = () => {
         </div></td>
       </tr>`).join('')}</tbody></table></div></div>`
     : empty(S.data.leads.length ? 'Tidak ada lead' : 'Belum ada lead',
-        S.data.leads.length ? 'Coba ubah filter status atau periode.' : 'Catat calon client dari DM Instagram, WhatsApp, atau referral lewat tombol + Tambah Lead.')}`;
+        S.data.leads.length ? (f.q ? `Tidak ada yang cocok dengan "${esc(f.q)}".` : 'Coba ubah filter status atau periode.') : 'Catat calon client dari DM Instagram, WhatsApp, atau referral lewat tombol + Tambah Lead.')}`;
 
   bindPeriod('ld', f, RENDER.lead);
+  bindSearch('ldQ', f, RENDER.lead);
   $('#ldSort').onchange = e => { f.sort = e.target.value; RENDER.lead(); };
   $('#ldStatus').onchange = e => { f.status = e.target.value; RENDER.lead(); };
   $('#ldAdd').onclick = () => leadForm(null);

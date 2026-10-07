@@ -1,5 +1,5 @@
 /* COMPLETED CLIENT (brief #5, #6, #7) */
-import { $, $$, S, F, RENDER, rp, esc, inRange, fmtDate, payBadge, statusBadge, empty } from '../core.js';
+import { $, $$, S, F, RENDER, rp, esc, inRange, fmtDate, payBadge, statusBadge, empty, searchBox, bindSearch, bookingMatch } from '../core.js';
 import { catGroups, catGroup } from '../stages.js';
 import { calLabel, dateButton, bindDateButton } from '../datepicker.js';
 import { bookingDrawer, showInvoice } from './detail.js';
@@ -13,6 +13,7 @@ RENDER.client = () => {
   const total = rows.length;
   if(cat.services) rows = rows.filter(b => cat.services.includes(b.service));
   rows = rows.filter(b => inRange(b.session_date, {from: f.from, to: f.to}));
+  if(f.q) rows = rows.filter(b => bookingMatch(b, f.q));
 
   const sorters = {
     newest:(a,b)=>(b.created_at||'').localeCompare(a.created_at||''),
@@ -37,6 +38,7 @@ RENDER.client = () => {
 
   $('#page').innerHTML = `
     <div class="jb-bar">
+      ${searchBox('clQ', f, 'Cari client, paket, invoice, WA…')}
       <label class="selchip"><span>Kategori</span><select id="clCat" aria-label="Kategori">
           ${catGroups().map(c => `<option value="${esc(c.id)}" ${f.cat===c.id?'selected':''}>${esc(c.label)}</option>`).join('')}
         </select></label>
@@ -73,6 +75,7 @@ RENDER.client = () => {
       </tr>`).join('')}</tbody></table></div></div>`
       : empty('Belum ada project selesai', total ? 'Tidak ada yang cocok dengan filter ini.' : 'Project akan muncul di sini setelah statusnya Delivered atau Completed.')}`;
 
+  bindSearch('clQ', f, RENDER.client);
   $('#clCat').onchange = e => { f.cat = e.target.value; RENDER.client(); };
   $$('[data-clopen]').forEach(r => r.onclick = e => { if(!e.target.closest('[data-stop]')) bookingDrawer(r.dataset.clopen); });
   $$('[data-clinv]').forEach(b => b.onclick = e => { e.stopPropagation(); showInvoice(b.dataset.clinv); });

@@ -1,7 +1,7 @@
 /* KEUANGAN / KAS (brief #1C, #9)
    Pembayaran yang dicatat di detail booking otomatis masuk ke kas. */
 import { $, $$, S, F, RENDER, rp, esc, today, inRange, fmtDate, toast, money, moneyVal,
-         openModal, closeModal, saveRow, insertRow, deleteRow, empty } from '../core.js';
+         openModal, closeModal, saveRow, insertRow, deleteRow, empty, searchBox, bindSearch, matchQuery } from '../core.js';
 import { catGroups, catGroup, stageOf } from '../stages.js';
 import { calLabel, dateButton, bindDateButton, MON_FULL, dISO } from '../datepicker.js';
 
@@ -26,6 +26,9 @@ RENDER.kas = () => {
   let rows = cat.services
     ? byDate.filter(t => { const b = bookingOf(t); return b && cat.services.includes(b.service); })
     : byDate;
+  if(f.q) rows = rows.filter(t => { const b = bookingOf(t);
+    return matchQuery(f.q, [t.description, t.category, t.kind === 'IN' ? 'pemasukan' : 'pengeluaran', String(t.amount),
+      b?.client_display, b?.service, b?.booking_id, b?.invoice_number]); });
   rows = [...rows].sort((a,b) => b.occurred_on.localeCompare(a.occurred_on));
 
   const masuk  = rows.filter(t=>t.kind==='IN').reduce((n,t)=>n+t.amount,0);
@@ -45,6 +48,7 @@ RENDER.kas = () => {
     </div>
 
     <div class="jb-bar">
+      ${searchBox('kasQ', f, 'Cari deskripsi, client, kategori, nominal…')}
       <label class="selchip"><span>Kategori</span><select id="kasCat" aria-label="Kategori">
           ${catGroups().map(c => `<option value="${esc(c.id)}" ${f.cat===c.id?'selected':''}>${esc(c.label)}</option>`).join('')}
         </select></label>
@@ -89,6 +93,7 @@ RENDER.kas = () => {
       </tr></tfoot>
     </table></div></div>` : empty('Belum ada transaksi','Tidak ada transaksi yang cocok dengan filter ini.')}`;
 
+  bindSearch('kasQ', f, RENDER.kas);
   $('#kasCat').onchange = e => { f.cat = e.target.value; RENDER.kas(); };
   bindDateButton('kasDate', f, RENDER.kas);
   $('#addTx').onclick = () => txForm(null);

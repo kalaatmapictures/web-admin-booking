@@ -563,6 +563,44 @@ export function customRange(f, onChange){
     <input type="date" value="${f.to||''}" style="${st}">
   </div>`;
 }
+/* ---------- pencarian (Booking, Joblist, Lead, Client, Keuangan) ----------
+   Tidak membedakan huruf besar/kecil & aksen; semua kata harus cocok.
+   Nomor WA cocok walau formatnya beda (0812… / 62812… / +62 812-…). */
+const norm = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const phoneForms = v => {
+  const d = String(v || '').replace(/\D/g, '');
+  if(!d) return '';
+  return [d, d.startsWith('62') ? '0' + d.slice(2) : d.startsWith('0') ? '62' + d.slice(1) : ''].join(' ');
+};
+export function matchQuery(q, fields, phones = []){
+  const words = norm(q).trim().split(/\s+/).filter(Boolean);
+  if(!words.length) return true;
+  const hay = norm(fields.filter(v => v !== null && v !== undefined && v !== '').join(' ')) + ' ' + phones.map(phoneForms).join(' ');
+  return words.every(w => hay.includes(w) || (/^[\d+().\-]+$/.test(w) && w.replace(/\D/g, '') && hay.includes(w.replace(/\D/g, ''))));
+}
+/* kata kunci booking: nama client & pasangan, ID, layanan, paket, lokasi, invoice, crew, WA */
+export const bookingMatch = (b, q) => matchQuery(q, [b.client_display, b.client_name, b.bride_name, b.groom_name, b.booking_id,
+  b.service, b.sub_category, b.package_name, b.location, b.invoice_number, b.photographer_name, b.videographer_name,
+  b.client_instagram, b.bride_instagram, b.groom_instagram, b.notes, b.status], [b.whatsapp]);
+const SEARCH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
+export const searchBox = (id, f, placeholder) => `<label class="searchbox">${SEARCH_ICON}
+  <input type="search" id="${id}" value="${esc(f.q || '')}" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}" autocomplete="off">
+  ${f.q ? `<button type="button" class="sx" data-sclear="${id}" aria-label="Hapus pencarian">✕</button>` : ''}</label>`;
+/* render ulang saat mengetik tanpa kehilangan fokus/posisi kursor */
+export function bindSearch(id, f, rerender){
+  const el = $('#' + id);
+  if(!el) return;
+  el.oninput = () => {
+    f.q = el.value;
+    const pos = el.selectionStart;
+    rerender();
+    const n = $('#' + id);
+    if(n){ n.focus(); n.setSelectionRange(pos, pos); }
+  };
+  const x = $(`[data-sclear="${id}"]`);
+  if(x) x.onclick = e => { e.preventDefault(); f.q = ''; rerender(); $('#' + id)?.focus(); };
+}
+
 export const crewBadge = s => s==='COMPLETE' ? '<span class="badge b-ok"><span class="d"></span>Complete</span>'
   : s==='PARTIAL' ? '<span class="badge b-warn"><span class="d"></span>Partial</span>'
   : '<span class="badge b-err"><span class="d"></span>Not Assigned</span>';

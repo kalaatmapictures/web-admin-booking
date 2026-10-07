@@ -4,7 +4,7 @@
    sendiri, terpisah dari papan tahap booking.
    ===================================================================== */
 import { $, $$, S, RENDER, esc, today, fmtDate, initials, toast,
-         openModal, closeModal, confirmBox, api, logAct, describe } from '../core.js';
+         openModal, closeModal, confirmBox, api, logAct, describe, searchBox, bindSearch, matchQuery } from '../core.js';
 import { bookingDrawer } from './detail.js';
 import { uniq, rolesText } from '../freelancers.js';
 
@@ -41,7 +41,9 @@ export function renderTasks(tabs){
   if(T.assignee !== 'ALL' && T.assignee !== 'NONE' && !personOf(T.assignee)) T.assignee = 'ALL';
   const rows = all.filter(t =>
     (T.assignee === 'ALL' || (T.assignee === 'NONE' ? !t.assignee_id : t.assignee_id === T.assignee)) &&
-    (T.type === 'ALL' || t.task_type === T.type));
+    (T.type === 'ALL' || t.task_type === T.type) &&
+    (!T.q || matchQuery(T.q, [t.title, t.task_type, t.notes, bookingOf(t)?.client_display, bookingOf(t)?.service,
+      bookingOf(t)?.booking_id, personOf(t.assignee_id)?.name, TASK_STATUS[statusIx(t.status)]?.label])));
   const byStatus = Object.fromEntries(TASK_STATUS.map(s => [s.id, rows.filter(t => t.status === s.id)
     .sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'))]));
   const late = rows.filter(isLate).length;
@@ -91,6 +93,7 @@ export function renderTasks(tabs){
     </div>` : ''}
 
     <div class="bk-bar" style="margin-top:14px">
+      ${searchBox('tkQ', T, 'Cari task, client, penanggung jawab…')}
       <label class="selchip"><span>Penanggung jawab</span><select id="tkWho" aria-label="Penanggung jawab">
         <option value="ALL">Semua</option><option value="NONE" ${T.assignee === 'NONE' ? 'selected' : ''}>Belum ada</option>
         ${people.map(f => `<option value="${f.id}" ${T.assignee === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}
@@ -108,6 +111,7 @@ export function renderTasks(tabs){
       <div class="jb-list">${byStatus[s.id].map(card).join('') || '<div class="jb-empty">Belum ada task</div>'}</div>
     </section>`).join('')}</div>`;
 
+  bindSearch('tkQ', T, RENDER.joblist);
   $('#tkWho').onchange = e => { T.assignee = e.target.value; RENDER.joblist(); };
   $('#tkType').onchange = e => { T.type = e.target.value; RENDER.joblist(); };
   $('#tkAdd').onclick = () => taskForm(null);
