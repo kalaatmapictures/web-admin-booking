@@ -225,6 +225,30 @@ export async function addPayment(bookingId, row){
   await logAct('create', 'Pembayaran', b?.client_display, `${row.kind} ${rp(row.amount)}${row.method ? ' · ' + row.method : ''}`);
   refreshBell();
 }
+/* Hapus permanen. Database ikut menghapus/mengosongkan data terkait (lihat
+   foreign key di schema.sql), jadi data dimuat ulang sesudahnya.
+   return=representation dipakai untuk memastikan baris benar-benar terhapus. */
+async function hardDelete(table, id){
+  const rows = await api(`${table}?id=eq.${id}`, {method:'DELETE', prefer:'return=representation'});
+  if(!rows?.length) throw new Error('Data tidak ditemukan atau tidak boleh dihapus');
+}
+export async function deleteBooking(id){
+  const b = S.data.bookings.find(x => x.id === id);
+  const pays = S.data.payments.filter(p => p.booking_id === id);
+  await hardDelete('bookings', id);
+  await loadAll();
+  await logAct('delete', 'Booking', b?.client_display, [b?.booking_id, b?.service, b && fmtDate(b.session_date),
+    pays.length ? `${pays.length} pembayaran (${rp(pays.reduce((n, p) => n + p.amount, 0))}) ikut terhapus` : null].filter(Boolean).join(' · '));
+  refreshBell();
+}
+export async function deleteFreelancer(id){
+  const f = S.data.freelancers.find(x => x.id === id);
+  const jobs = S.data.bookings.filter(b => b.photographer_id === id || b.videographer_id === id).length;
+  await hardDelete('freelancers', id);
+  await loadAll();
+  await logAct('delete', 'Freelancer', f?.name, jobs ? `dilepas dari ${jobs} booking` : null);
+}
+
 const ENTITY = {freelancers:'Freelancer', transactions:'Transaksi', leads:'Lead', clients:'Client'};
 const rowName = (store, r) => r ? (r.name || r.description || r.client_display || r.id) : '—';
 export async function saveRow(table, id, patch, store){

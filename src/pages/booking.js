@@ -1,7 +1,9 @@
 /* BOOKING (brief #1A, #15, #16, #19) — termasuk booking baru dari landing page */
 import { $, $$, S, F, RENDER, rp, esc, today, range, inRange, fmtDate, timeRange,
          chipbar, customRange, crewBadge, statusBadge, payBadge, empty } from '../core.js';
-import { bookingDrawer } from './detail.js';
+import { bookingDrawer, confirmDeleteBooking } from './detail.js';
+
+const TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
 RENDER.booking = () => {
   const f = F.booking, r = range(f.date, f.custom);
@@ -43,7 +45,7 @@ RENDER.booking = () => {
 
     ${rows.length ? `<div class="card"><div class="tablewrap"><table>
       <thead><tr>
-        <th>Client</th><th>Kategori</th><th>Tanggal</th><th>Crew Status</th><th>Status</th><th class="r">Total</th><th class="r">Payment</th>
+        <th>Client</th><th>Kategori</th><th>Tanggal</th><th>Crew Status</th><th>Status</th><th class="r">Total</th><th class="r">Payment</th><th class="r"></th>
       </tr></thead><tbody>
       ${rows.map(b=>`<tr class="click" data-b="${b.id}">
         <td><div class="tname">${esc(b.client_display)}${b.status==='NEW' && b.source==='website' ? ' <span class="badge b-neutral" style="font-size:10px;padding:2px 8px">Baru · Website</span>' : ''}</div>
@@ -57,9 +59,11 @@ RENDER.booking = () => {
         <td>${statusBadge(b.status)}</td>
         <td class="r num" style="font-weight:600">${rp(b.total_invoice)}</td>
         <td class="r">${payBadge(b.payment_status)}${b.payment_overdue?'<div class="tsub" style="color:var(--err)">overdue</div>':''}</td>
+        <td class="r"><button class="ibtn del" data-bdel="${b.id}" title="Hapus booking" aria-label="Hapus booking">${TRASH}</button></td>
       </tr>`).join('')}
       </tbody></table></div></div>` : empty('Tidak ada booking','Coba longgarkan filternya.')}`;
 
   $('#reqCrew').onchange = e => f.requireCrew = e.target.checked;
   $$('[data-b]').forEach(tr => tr.onclick = () => bookingDrawer(tr.dataset.b));
+  $$('[data-bdel]').forEach(btn => btn.onclick = e => { e.stopPropagation(); confirmDeleteBooking(btn.dataset.bdel); });
 };
