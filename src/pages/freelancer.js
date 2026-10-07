@@ -387,8 +387,6 @@ function addFreelancer(){
     <p>Rate bisa lebih dari satu — berbeda untuk tiap peran & event. Freelancer yang bisa beberapa peran cukup ditambah rate untuk peran lainnya.</p>
     ${schemaBanner()}
     <div class="fld" style="margin-top:16px"><label>Nama <span style="color:var(--primary)">*</span></label><input id="nfName" placeholder="Nama lengkap"></div>
-    <div class="fld" style="margin-top:11px"><label>Peran utama</label>
-      <select id="nfRole">${roleOpts('PHOTOGRAPHER')}</select></div>
 
     <div style="text-align:left;margin-top:16px">
       <div class="mlabel">Rate per peran & event</div>
@@ -415,18 +413,17 @@ function addFreelancer(){
       <div class="fld money"><label>Rate</label><input data-k="rate" inputmode="numeric" placeholder="Rp0"></div>
       <button class="ibtn del" type="button" title="Hapus baris" aria-label="Hapus baris">${ICON.del}</button>`;
     money(el.querySelector('[data-k=rate]'), 0);
-    // peran baris mengikuti peran utama sampai diubah manual
-    el.querySelector('[data-k=role]').onchange = e => e.target.dataset.touched = '1';
     el.querySelector('button').onclick = () => el.remove();
     $('#nfRates').appendChild(el);
   };
-  const mainRole = () => $('#nfRole').value;
-  $('#nfRole').onchange = () => $$('#nfRates [data-k=role]').forEach(s => { if(!s.dataset.touched) s.value = mainRole(); });
-  addRow(GENERAL_EVENT, mainRole());
+  const rowRoles = () => $$('#nfRates [data-k=role]').map(s => s.value);
+  // baris baru memakai peran baris terakhir
+  const lastRole = () => rowRoles().at(-1) || 'PHOTOGRAPHER';
+  addRow(GENERAL_EVENT, 'PHOTOGRAPHER');
   $('#nfAddRate').onclick = () => {
-    const used = $$('#nfRates .fl-raterow').filter(el => el.querySelector('[data-k=role]').value === mainRole())
+    const used = $$('#nfRates .fl-raterow').filter(el => el.querySelector('[data-k=role]').value === lastRole())
       .map(el => el.querySelector('[data-k=event]').value);
-    addRow(eventList().find(e => !used.includes(e)) || GENERAL_EVENT, mainRole());
+    addRow(eventList().find(e => !used.includes(e)) || GENERAL_EVENT, lastRole());
   };
 
   $('#nfSave').onclick = async () => {
@@ -445,7 +442,8 @@ function addFreelancer(){
     const btn = $('#nfSave'); btn.disabled = true;
     try{
       const [f] = await api('freelancers', {method:'POST', prefer:'return=representation', body:{
-        name, role: $('#nfRole').value,
+        // peran tersimpan di tiap rate; kolom role freelancer = peran baris pertama
+        name, role: rowRoles()[0] || 'PHOTOGRAPHER',
         whatsapp: $('#nfWa').value.trim() || null, email: $('#nfMail').value.trim() || null,
         gear: $('#nfGear').value.split('\n').map(x => x.trim()).filter(Boolean),
         is_active: true
