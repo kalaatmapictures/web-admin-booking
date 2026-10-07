@@ -430,20 +430,53 @@ export const PAGES = [
 ];
 export const svg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>`;
 
+/* Di HP hanya 4 menu utama di bar bawah; sisanya lewat tombol "Lainnya". */
+const MOB_MAIN = ['dashboard', 'booking', 'joblist', 'calendar'];
+const MORE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>';
 function buildNav(){
   $('#nav').innerHTML = PAGES.map(p =>
     `<button class="navlink" data-go="${p.id}">${svg(p.id)}${p.label}<span class="cnt hide" data-badge="${p.id}"></span></button>`).join('');
-  $('#mobnav').innerHTML = PAGES.map(p =>
-    `<button data-go="${p.id}">${svg(p.id)}<span>${p.label}</span></button>`).join('');
+  $('#mobnav').innerHTML = PAGES.filter(p => MOB_MAIN.includes(p.id)).map(p =>
+    `<button data-go="${p.id}">${svg(p.id)}<span>${p.label}</span><i class="mcnt hide" data-mbadge="${p.id}"></i></button>`).join('')
+    + `<button id="mobMore">${MORE_ICON}<span>Lainnya</span></button>`;
   $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+  $('#mobMore').onclick = openMoreMenu;
   refreshBell();
 }
+function openMoreMenu(){
+  openModal(`<h3>Menu</h3>
+    <div class="more-grid">${PAGES.map(p => `<button class="${S.page === p.id ? 'on' : ''}" data-more="${p.id}">${svg(p.id)}<span>${p.title}</span></button>`).join('')}</div>
+    <div class="more-foot"><div class="tsub">Masuk sebagai <b>${esc(S.admin.name)}</b></div>
+      <button class="btn soft sm" id="moreLogout">Keluar</button></div>`);
+  $$('[data-more]').forEach(b => b.onclick = () => { closeModal(); go(b.dataset.more); });
+  $('#moreLogout').onclick = () => { closeModal(); $('#logoutBtn').click(); };
+}
+
+/* Tabel jadi kartu di HP: setiap sel diberi label dari judul kolomnya (lihat CSS .mtable). */
+function labelTables(){
+  $$('#page .tablewrap table').forEach(t => {
+    const heads = [...t.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    if(!heads.length) return;
+    t.classList.add('mtable');
+    t.querySelectorAll('tbody tr').forEach(tr => {
+      if(tr.cells.length !== heads.length) return;
+      [...tr.cells].forEach((td, i) => { if(!td.hasAttribute('data-label')) td.dataset.label = heads[i]; });
+    });
+  });
+}
+let labelQueued = false;
+new MutationObserver(() => {
+  if(labelQueued) return;
+  labelQueued = true;
+  queueMicrotask(() => { labelQueued = false; labelTables(); });
+}).observe(document.getElementById('page'), {childList:true, subtree:true});
 export function go(id){
   S.page = id;
   const p = PAGES.find(x=>x.id===id);
   $('#pgTitle').textContent = p.title;
   $('#pgSub').textContent = '';
   $$('[data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
+  $('#mobMore')?.classList.toggle('on', !MOB_MAIN.includes(id));
   RENDER[id]();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -456,6 +489,8 @@ export function refreshBell(){
   el.textContent = n; el.classList.toggle('hide', n === 0);
   const badge = $('[data-badge="booking"]');
   if(badge){ badge.textContent = n; badge.classList.toggle('hide', n === 0); }
+  const mb = $('[data-mbadge="booking"]');
+  if(mb){ mb.textContent = n; mb.classList.toggle('hide', n === 0); }
 }
 
 /* drawer & modal plumbing */

@@ -129,14 +129,14 @@ RENDER.joblist = () => {
         <button class="chip ${JB.view==='card'?'on':''}" data-jbview="card">Papan Kartu</button>
         <button class="chip ${JB.view==='list'?'on':''}" data-jbview="list">Daftar</button>
       </div>
-      <div class="chips">
-        ${catGroups().map(c => `<button class="chip alt ${JB.cat===c.id?'on':''}" data-jbcat="${esc(c.id)}">${esc(c.label)}</button>`).join('')}
-      </div>
-      <div class="chips" style="margin-left:auto">
-        ${dateButton('jbDate', JB)}
-        <button class="chip alt ${JB.sort==='nearest'?'on':''}" data-jbsort="nearest">Terdekat</button>
-        <button class="chip alt ${JB.sort==='farthest'?'on':''}" data-jbsort="farthest">Terjauh</button>
-      </div>
+      <label class="selchip"><span>Kategori</span><select id="jbCat" aria-label="Kategori">
+          ${catGroups().map(c => `<option value="${esc(c.id)}" ${JB.cat===c.id?'selected':''}>${esc(c.label)}</option>`).join('')}
+        </select></label>
+      <div class="chips">${dateButton('jbDate', JB)}</div>
+      <label class="selchip"><span>Urutkan</span><select id="jbSort" aria-label="Urutkan">
+        <option value="nearest" ${JB.sort==='nearest'?'selected':''}>Terdekat</option>
+        <option value="farthest" ${JB.sort==='farthest'?'selected':''}>Terjauh</option>
+      </select></label>
     </div>`;
 
   if(JB.view === 'card'){
@@ -182,8 +182,8 @@ RENDER.joblist = () => {
 
   bindTabs();
   $$('[data-jbview]').forEach(b => b.onclick = () => { JB.view = b.dataset.jbview; RENDER.joblist(); });
-  $$('[data-jbsort]').forEach(b => b.onclick = () => { JB.sort = b.dataset.jbsort; RENDER.joblist(); });
-  $$('[data-jbcat]').forEach(b => b.onclick = () => { JB.cat = b.dataset.jbcat; RENDER.joblist(); });
+  $('#jbSort').onchange = e => { JB.sort = e.target.value; RENDER.joblist(); };
+  $('#jbCat').onchange = e => { JB.cat = e.target.value; RENDER.joblist(); };
   bindDateButton('jbDate', JB, RENDER.joblist);
   $$('[data-jbjump]').forEach(b => b.onclick = () => {
     document.querySelector(`[data-stage="${b.dataset.jbjump}"]`)?.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
