@@ -170,7 +170,7 @@ const FIELD = {
   transport_charge:'Transport', other_charge:'Other charge', discount:'Discount',
   photo_drive_link:'Link foto', video_drive_link:'Link video', raw_file_link:'Link raw', final_file_link:'Link final',
   delivery_date:'Tanggal delivery', labels:'Label', payment_due_date:'Jatuh tempo',
-  rate:'Rate', rate_type:'Tipe rate', event:'Event', note:'Catatan', gear:'Gear', is_active:'Aktif',
+  rate:'Rate', rate_type:'Tipe rate', event:'Event', role:'Peran', note:'Catatan', gear:'Gear', is_active:'Aktif',
   kind:'Jenis', amount:'Jumlah', category:'Kategori', description:'Deskripsi', occurred_on:'Tanggal', booking_id:'Project',
   hpp_estimate:'HPP'
 };
