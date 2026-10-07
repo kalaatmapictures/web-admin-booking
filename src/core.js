@@ -184,9 +184,9 @@ const FIELD = {
   delivery_date:'Tanggal delivery', labels:'Label', payment_due_date:'Jatuh tempo',
   rate:'Rate', rate_type:'Tipe rate', event:'Event', role:'Peran', note:'Catatan', gear:'Gear', is_active:'Aktif',
   kind:'Jenis', amount:'Jumlah', category:'Kategori', description:'Deskripsi', occurred_on:'Tanggal', booking_id:'Project',
-  hpp_estimate:'HPP', title:'Judul', task_type:'Jenis', assignee_id:'Penanggung jawab', due_date:'Deadline', notes:'Catatan'
+  hpp_estimate:'HPP', name:'Nama', whatsapp:'WhatsApp', email:'Email', source:'Sumber', follow_up_date:'Follow-up', estimated_value:'Estimasi', title:'Judul', task_type:'Jenis', assignee_id:'Penanggung jawab', due_date:'Deadline', notes:'Catatan'
 };
-const MONEY_F = new Set(['custom_package_price','additional_charge','extra_time_charge','transport_charge','other_charge','discount','rate','amount','hpp_estimate']);
+const MONEY_F = new Set(['custom_package_price','additional_charge','extra_time_charge','transport_charge','other_charge','discount','rate','amount','hpp_estimate','estimated_value']);
 const LINK_F = new Set(['photo_drive_link','video_drive_link','raw_file_link','final_file_link']);
 function fmtField(k, v){
   if(v === null || v === undefined || v === '') return '—';

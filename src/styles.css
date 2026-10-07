@@ -313,6 +313,12 @@ a{color:var(--primary)}
 .tk-chip.ok{color:#0C6E51;background:#D6F5E9}
 .fl-n2{background:var(--err);color:#fff;border-radius:99px;padding:0 7px;font-size:10.5px;margin-left:4px}
 
+/* lead */
+.ld-status{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.ld-status button{padding:7px 12px;border-radius:99px;background:var(--bg);font-size:12px;font-weight:600;color:var(--ink-2);border:2px solid transparent}
+.ld-status button.on{border-color:var(--primary);background:var(--tint);color:var(--primary)}
+.ld-note{margin-top:3px;max-width:42ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* ---------- tabel kas ---------- */
 .kas-t td, .kas-t th{vertical-align:middle}
 .kas-in{color:var(--ok);font-weight:600}
