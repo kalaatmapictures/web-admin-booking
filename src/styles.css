@@ -313,6 +313,16 @@ a{color:var(--primary)}
 .tk-chip.ok{color:#0C6E51;background:#D6F5E9}
 .fl-n2{background:var(--err);color:#fff;border-radius:99px;padding:0 7px;font-size:10.5px;margin-left:4px}
 
+/* kotak pencarian */
+.searchbox{display:flex;align-items:center;gap:8px;flex:1 1 230px;min-width:0;max-width:340px;background:var(--surface);border-radius:99px;padding:0 8px 0 14px;box-shadow:var(--shadow);border:2px solid transparent;transition:border-color .2s}
+.searchbox:focus-within{border-color:var(--primary)}
+.searchbox svg{width:16px;height:16px;color:var(--muted);flex:0 0 auto}
+.searchbox input{flex:1;min-width:0;border:0;background:transparent;padding:9px 0;font-size:13px;outline:none;color:var(--ink)}
+.searchbox input::-webkit-search-cancel-button{display:none}
+.searchbox .sx{width:24px;height:24px;border-radius:99px;background:var(--bg-2);color:var(--muted);font-size:11px;flex:0 0 auto}
+.searchbox .sx:hover{background:var(--tint-2);color:var(--primary)}
+@media(max-width:700px){ .searchbox{flex:1 1 100%;max-width:none} .searchbox input{font-size:16px;padding:10px 0} }
+
 /* lead */
 .ld-status{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
 .ld-status button{display:grid;gap:2px;padding:10px 8px;border-radius:14px;background:var(--bg);color:var(--ink-2);border:2px solid transparent;text-align:center}

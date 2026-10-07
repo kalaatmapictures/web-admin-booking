@@ -1,6 +1,6 @@
 /* BOOKING (brief #1A, #15, #16, #19) — termasuk booking baru dari landing page */
 import { $, $$, S, F, RENDER, rp, esc, today, range, inRange, fmtDate, timeRange,
-         crewBadge, statusBadge, payBadge, empty } from '../core.js';
+         crewBadge, statusBadge, payBadge, empty, searchBox, bindSearch, bookingMatch } from '../core.js';
 import { bookingDrawer, confirmDeleteBooking } from './detail.js';
 import { normPeriod, periodButtons, bindPeriod } from '../datepicker.js';
 
@@ -20,6 +20,7 @@ RENDER.booking = () => {
   if(f.crew === 'attention')       rows = rows.filter(b=>b.needs_attention);
   else if(f.crew === 'incomplete') rows = rows.filter(b=>b.crew_status!=='COMPLETE');
   else if(f.crew !== 'all')        rows = rows.filter(b=>b.crew_status===f.crew);
+  if(f.q) rows = rows.filter(b => bookingMatch(b, f.q));
 
   const sorters = {
     newest:  (a,b)=> (b.created_at||'').localeCompare(a.created_at||''),
@@ -39,6 +40,7 @@ RENDER.booking = () => {
 
   $('#page').innerHTML = `
     <div class="bk-bar">
+      ${searchBox('bkQ', f, 'Cari nama, ID, paket, lokasi, WA…')}
       ${periodButtons('bk', f)}
       <label class="selchip"><span>Urutkan</span><select id="bkSort" aria-label="Urutkan">${selOpts(SORTS, f.sort)}</select></label>
       <label class="selchip"><span>Crew</span><select id="bkCrew" aria-label="Crew status">${selOpts(CREWS, f.crew)}</select></label>
@@ -66,10 +68,11 @@ RENDER.booking = () => {
         <td class="r">${payBadge(b.payment_status)}${b.payment_overdue?'<div class="tsub" style="color:var(--err)">overdue</div>':''}</td>
         <td class="r"><button class="ibtn del" data-bdel="${b.id}" title="Hapus booking" aria-label="Hapus booking">${TRASH}</button></td>
       </tr>`).join('')}
-      </tbody></table></div></div>` : empty('Tidak ada booking','Coba longgarkan filternya.')}`;
+      </tbody></table></div></div>` : empty('Tidak ada booking', f.q ? `Tidak ada yang cocok dengan "${esc(f.q)}".` : 'Coba longgarkan filternya.')}`;
 
   $('#reqCrew').onchange = e => f.requireCrew = e.target.checked;
   bindPeriod('bk', f, RENDER.booking);
+  bindSearch('bkQ', f, RENDER.booking);
   $('#bkSort').onchange = e => { f.sort = e.target.value; RENDER.booking(); };
   $('#bkCrew').onchange = e => { f.crew = e.target.value; RENDER.booking(); };
   $$('[data-b]').forEach(tr => tr.onclick = () => bookingDrawer(tr.dataset.b));

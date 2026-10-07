@@ -3,7 +3,7 @@
    (status NEW) otomatis muncul di kolom BOOKING.
    ===================================================================== */
 import { $, $$, S, F, RENDER, rp, esc, today, inRange, fmtDate, initials, toast,
-         openModal, closeModal, saveBooking, crewBadge } from '../core.js';
+         openModal, closeModal, saveBooking, crewBadge, searchBox, bindSearch, bookingMatch } from '../core.js';
 import { STAGES, stageOf, stageIx, catGroups, catGroup, PAY_LABELS, payLabel, MANUAL_LABELS, labelChips } from '../stages.js';
 import { calLabel, dateButton, bindDateButton } from '../datepicker.js';
 import { bookingDrawer } from './detail.js';
@@ -94,11 +94,13 @@ RENDER.joblist = () => {
   const all = S.data.bookings.filter(b =>
     stageOf(b) &&
     (!cat.services || cat.services.includes(b.service)) &&
-    inRange(b.session_date, {from: JB.from, to: JB.to}));
+    inRange(b.session_date, {from: JB.from, to: JB.to}) &&
+    (!JB.q || bookingMatch(b, JB.q)));
 
   const cancelled = S.data.bookings.filter(b => b.status === 'CANCELLED').length;
   const bits = [`${all.length} kartu di papan`];
   if(JB.cat !== 'ALL') bits.push(cat.label);
+  if(JB.q) bits.push(`cari "${JB.q}"`);
   if(JB.from || JB.to) bits.push(calLabel(JB.from, JB.to, JB.monthLabel));
   if(cancelled) bits.push(`${cancelled} dibatalkan (tidak ditampilkan)`);
   $('#pgSub').textContent = bits.join(' · ');
@@ -125,6 +127,7 @@ RENDER.joblist = () => {
     <div class="sec-h"><h3>Papan</h3></div>`;
 
   const toggle = `<div class="jb-bar">
+      ${searchBox('jbQ', JB, 'Cari client, paket, crew, WA…')}
       <div class="chips">
         <button class="chip ${JB.view==='card'?'on':''}" data-jbview="card">Papan Kartu</button>
         <button class="chip ${JB.view==='list'?'on':''}" data-jbview="list">Daftar</button>
@@ -181,6 +184,7 @@ RENDER.joblist = () => {
   }
 
   bindTabs();
+  bindSearch('jbQ', JB, RENDER.joblist);
   $$('[data-jbview]').forEach(b => b.onclick = () => { JB.view = b.dataset.jbview; RENDER.joblist(); });
   $('#jbSort').onchange = e => { JB.sort = e.target.value; RENDER.joblist(); };
   $('#jbCat').onchange = e => { JB.cat = e.target.value; RENDER.joblist(); };
