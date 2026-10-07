@@ -5,12 +5,11 @@ import { $, $$, S, F, RENDER, rp, esc, today, fmtDate, initials, toast, money, m
          openModal, closeModal, confirmBox, saveRow, saveBooking, api, logAct, describe } from '../core.js';
 import { STAGES, stageOf } from '../stages.js';
 import { calLabel, dateButton, bindDateButton, dISO } from '../datepicker.js';
+import { ROLE_LABEL, GENERAL_EVENT, uniq, ratesOf, rateRole, roleName, rolesOf, hasRole, rolesText, rateFor } from '../freelancers.js';
 
-export const ROLE_LABEL = {PHOTOGRAPHER:'Photographer', VIDEOGRAPHER:'Videographer', EDITOR:'Editor', ASSISTANT:'Assistant', WCC:'Wedding Content Creator', OTHER:'Lainnya'};
 const CREW_SLOT = {PHOTOGRAPHER:'photographer_id', VIDEOGRAPHER:'videographer_id'};
 const SLOT_LABEL = {photographer_id:'Photographer', videographer_id:'Videographer'};
 const DEFAULT_RATE_TYPES = ['Per Project', 'Per Jam', 'Per Hari'];
-const GENERAL_EVENT = 'Umum';
 
 const ICON = {
   edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
@@ -20,7 +19,6 @@ const ICON = {
 
 /* ---------- pilihan rate type & event ---------- */
 const options = kind => (S.data.freelancerOptions || []).filter(o => o.kind === kind);
-const uniq = a => [...new Set(a.filter(Boolean))];
 export const rateTypes = () => {
   const list = options('RATE_TYPE').map(o => o.label);
   return list.length ? list : DEFAULT_RATE_TYPES;
@@ -30,16 +28,11 @@ export const eventList = () => uniq([GENERAL_EVENT, ...options('EVENT').map(o =>
   ...(S.data.freelancerRates || []).map(r => r.event)]);
 const selectOpts = (list, sel) => uniq([...list, sel]).map(v => `<option ${v === sel ? 'selected' : ''}>${esc(v)}</option>`).join('');
 
-/* ---------- rate per event ---------- */
-export const ratesOf = id => (S.data.freelancerRates || []).filter(r => r.freelancer_id === id)
-  .sort((a, b) => (a.event === GENERAL_EVENT) - (b.event === GENERAL_EVENT) || a.event.localeCompare(b.event));
+/* ---------- peran & rate (helper bersama ada di ../freelancers.js) ---------- */
+const crewSlots = f => rolesOf(f).filter(r => CREW_SLOT[r]);
 const rateText = r => `${rp(r.rate)} <span class="tsub">· ${esc(r.rate_type)}</span>`;
-/* rate yang berlaku untuk sebuah booking: event = nama layanan, kalau tidak ada pakai "Umum" */
-export const rateFor = (fid, service) => {
-  const list = ratesOf(fid);
-  const lc = s => String(s || '').trim().toLowerCase();
-  return list.find(r => lc(r.event) === lc(service)) || list.find(r => r.event === GENERAL_EVENT) || null;
-};
+const roleOpts = sel => Object.entries(ROLE_LABEL).map(([v, l]) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${l}</option>`).join('');
+const SLOT_ROLE = {photographer_id:'PHOTOGRAPHER', videographer_id:'VIDEOGRAPHER'};
 
 const schemaBanner = () => S.data.flSchemaMissing
   ? `<div class="banner" style="margin-bottom:14px"><b>Database belum diperbarui.</b> Jalankan ulang <code>supabase/schema.sql</code>
@@ -64,14 +57,14 @@ RENDER.freelancer = () => {
 
 function renderList(tabs){
   const rows = S.data.freelancers;
-  const n = r => rows.filter(f => f.role === r).length;
+  const n = r => rows.filter(f => hasRole(f, r)).length;
   $('#pgSub').textContent = `${rows.filter(f=>f.is_active).length} aktif dari ${rows.length}`;
 
   const ov = [
     ['Total Freelancer', rows.length],
     ['Photographer', n('PHOTOGRAPHER')],
     ['Videographer', n('VIDEOGRAPHER')],
-    ['Peran lain', rows.filter(f => !['PHOTOGRAPHER','VIDEOGRAPHER'].includes(f.role)).length]
+    ['Peran lain', rows.filter(f => rolesOf(f).some(r => !CREW_SLOT[r])).length]
   ].map(([l,v]) => `<div class="card kpi jb-ov"><div class="lbl">${l}</div><div class="val">${v}</div><div class="cap">orang</div></div>`).join('');
 
   $('#page').innerHTML = `${tabs}${schemaBanner()}
@@ -86,16 +79,16 @@ function renderList(tabs){
       const upcoming = jobs.filter(b => b.session_date >= today() && b.status !== 'CANCELLED')
                            .sort((a,b) => a.session_date.localeCompare(b.session_date));
       const done = jobs.filter(b => b.status !== 'CANCELLED').length;
-      const slot = CREW_SLOT[f.role];
-      const open = slot ? S.data.bookings.filter(b => stageOf(b) && !b[slot] &&
-        (f.role === 'PHOTOGRAPHER' ? b.needs_photographer : b.needs_videographer)).length : 0;
+      const slots = crewSlots(f);
+      const open = S.data.bookings.filter(b => stageOf(b) && slots.some(r => needsSlot(b, r))).length;
       const rates = ratesOf(f.id);
+      const multi = rolesOf(f).length > 1;
       return `<div class="card fl-card">
         <div class="fl-head">
           <span class="fl-av">${initials(f.name)}</span>
           <div style="min-width:0">
             <div class="fl-name">${esc(f.name)}</div>
-            <div class="tsub">${ROLE_LABEL[f.role]||esc(f.role)}</div>
+            <div class="tsub">${esc(rolesText(f))}</div>
           </div>
           <span class="badge ${f.is_active?'b-ok':'b-grey'}">${f.is_active?'Aktif':'Nonaktif'}</span>
         </div>
@@ -111,10 +104,10 @@ function renderList(tabs){
           : 'Belum ada jadwal mendatang.'}</div>
 
         <div class="gear">
-          <div class="gear-h">Rate per event
+          <div class="gear-h">Rate per peran & event
             <button class="gear-edit" data-edit="${f.id}">Kelola</button></div>
           ${rates.length
-            ? `<div class="fl-rates">${rates.map(r => `<div class="fl-rate"><span class="ev">${esc(r.event)}</span><span class="v">${rateText(r)}</span></div>`).join('')}</div>`
+            ? `<div class="fl-rates">${rates.map(r => `<div class="fl-rate"><span class="ev">${multi ? `<span class="fl-role">${esc(roleName(rateRole(r)))}</span>` : ''}${esc(r.event)}</span><span class="v stack">${rp(r.rate)}<span class="tsub">${esc(r.rate_type)}</span></span></div>`).join('')}</div>`
             : `<div class="tsub">Belum ada rate.</div>`}
         </div>
 
@@ -127,7 +120,7 @@ function renderList(tabs){
         </div>
 
         <div class="fl-acts">
-          ${slot
+          ${slots.length
             ? `<button class="btn sm fl-main" data-fldel="${f.id}">Delegasikan${open?` <span class="fl-n">${open}</span>`:''}</button>`
             : `<span class="fl-note">Tidak ada slot crew untuk peran ini</span>`}
           <div class="fl-row2">
@@ -166,52 +159,57 @@ function editGear(id){
 }
 
 /* ---------- delegasi pekerjaan → langsung mengubah kartu Joblist ---------- */
+const needsSlot = (b, role) => !b[CREW_SLOT[role]] && (role === 'PHOTOGRAPHER' ? b.needs_photographer : b.needs_videographer);
+const bySession = (a, b) => (a.session_date||'9999').localeCompare(b.session_date||'9999');
+
 function delegateModal(id){
   const f = S.data.freelancers.find(x => x.id === id);
-  const slot = CREW_SLOT[f.role];
-  const role = ROLE_LABEL[f.role];
-
-  const openings = S.data.bookings
-    .filter(b => stageOf(b) && !b[slot] && (f.role === 'PHOTOGRAPHER' ? b.needs_photographer : b.needs_videographer))
-    .sort((a,b) => (a.session_date||'9999').localeCompare(b.session_date||'9999'));
-  const mine = S.data.bookings.filter(b => b[slot] === f.id && stageOf(b))
-    .sort((a,b) => (a.session_date||'9999').localeCompare(b.session_date||'9999'));
+  const roles = crewSlots(f);
 
   const stageChip = b => {
     const st = STAGES.find(s => s.id === stageOf(b));
     return `<span class="lb" style="background:${st.bg};color:${st.fg}">${st.label}</span>`;
   };
-  const rateNote = b => { const r = rateFor(f.id, b.service); return r ? ` · rate ${rp(r.rate)} (${esc(r.event)})` : ''; };
-  const row = (b, action) => `<div class="deleg">
+  const row = (b, roleKey, action) => {
+    const r = rateFor(f.id, b.service, roleKey);
+    return `<div class="deleg">
       <div style="min-width:0">
         <div class="dn">${esc(b.client_display)}</div>
-        <div class="tsub">${esc(b.service)} · ${fmtDate(b.session_date)} · ${esc(b.session_time||'')}${rateNote(b)}</div>
+        <div class="tsub">${esc(b.service)} · ${fmtDate(b.session_date)} · ${esc(b.session_time||'')}${r ? ` · rate ${rp(r.rate)} (${esc(r.event)})` : ''}</div>
         <div style="margin-top:5px">${stageChip(b)}</div>
       </div>${action}</div>`;
+  };
+  const section = roleKey => {
+    const slot = CREW_SLOT[roleKey], role = ROLE_LABEL[roleKey];
+    const openings = S.data.bookings.filter(b => stageOf(b) && needsSlot(b, roleKey)).sort(bySession);
+    const mine = S.data.bookings.filter(b => b[slot] === f.id && stageOf(b)).sort(bySession);
+    return `<div class="mlabel" style="margin-top:18px">Butuh ${role} (${openings.length})</div>
+      <div style="margin-top:10px">${openings.length
+        ? openings.map(b => row(b, roleKey, `<button class="btn sm" data-assign="${b.id}" data-slot="${slot}">Tugaskan</button>`)).join('')
+        : `<div class="tsub">Tidak ada booking yang butuh ${role} saat ini.</div>`}</div>
+      <div class="mlabel" style="margin-top:18px">Sedang ditangani sebagai ${role} (${mine.length})</div>
+      <div style="margin-top:10px">${mine.length
+        ? mine.map(b => row(b, roleKey, `<button class="btn soft sm" data-unassign="${b.id}" data-slot="${slot}">Lepas</button>`)).join('')
+        : '<div class="tsub">Belum ada penugasan.</div>'}</div>`;
+  };
 
   openModal(`<h3>Delegasikan ke ${esc(f.name)}</h3>
-    <p>${role} · penugasan langsung mengubah kartu di Joblist.</p>
-
-    <div style="text-align:left;margin-top:18px">
-      <div class="mlabel">Butuh ${role} (${openings.length})</div>
-      <div style="margin-top:10px">${openings.length
-        ? openings.map(b => row(b, `<button class="btn sm" data-assign="${b.id}">Tugaskan</button>`)).join('')
-        : '<div class="tsub">Tidak ada booking yang butuh ' + role + ' saat ini.</div>'}</div>
-
-      <div class="mlabel" style="margin-top:22px">Sedang ditangani (${mine.length})</div>
-      <div style="margin-top:10px">${mine.length
-        ? mine.map(b => row(b, `<button class="btn soft sm" data-unassign="${b.id}">Lepas</button>`)).join('')
-        : '<div class="tsub">Belum ada penugasan.</div>'}</div>
-    </div>
+    <p>${esc(roles.map(roleName).join(' · '))} · penugasan langsung mengubah kartu di Joblist.</p>
+    <div style="text-align:left">${roles.map(section).join('<div style="border-top:1.5px dashed var(--line);margin-top:20px"></div>')}</div>
     <div class="acts"><button class="btn soft" data-mclose>Tutup</button></div>`);
 
   $$('[data-assign]').forEach(b => b.onclick = async () => {
-    await saveBooking(b.dataset.assign, {[slot]: f.id});
+    const bk = S.data.bookings.find(x => x.id === b.dataset.assign);
+    const other = b.dataset.slot === 'photographer_id' ? 'videographer_id' : 'photographer_id';
+    if(bk?.[other] === f.id && !await confirmBox('Pegang dua peran?',
+      `${f.name} sudah menjadi ${SLOT_LABEL[other]} di booking ini. Tetap tugaskan juga sebagai ${SLOT_LABEL[b.dataset.slot]}?`, 'Ya, tugaskan', false))
+      return delegateModal(id);
+    await saveBooking(b.dataset.assign, {[b.dataset.slot]: f.id});
     toast(`${f.name} ditugaskan — kartu Joblist diperbarui`);
     delegateModal(id); RENDER.freelancer();
   });
   $$('[data-unassign]').forEach(b => b.onclick = async () => {
-    await saveBooking(b.dataset.unassign, {[slot]: null});
+    await saveBooking(b.dataset.unassign, {[b.dataset.slot]: null});
     toast('Penugasan dilepas');
     delegateModal(id); RENDER.freelancer();
   });
@@ -220,10 +218,10 @@ function delegateModal(id){
 /* =====================================================================
    RATE PER EVENT
    ===================================================================== */
-const rateDesc = r => `${r.event} · ${rp(r.rate)} ${r.rate_type}`;
+const rateDesc = r => `${roleName(rateRole(r))} · ${r.event} · ${rp(r.rate)} ${r.rate_type}`;
 const showErr = (sel, msg) => { const e = $(sel); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; };
-const isDup = (fid, event, type, exceptId) => ratesOf(fid).some(r => r.id !== exceptId &&
-  r.event.toLowerCase() === event.toLowerCase() && r.rate_type.toLowerCase() === type.toLowerCase());
+const rateKey = r => [rateRole(r), r.event, r.rate_type].join('|').toLowerCase();
+const isDup = (fid, row, exceptId) => ratesOf(fid).some(r => r.id !== exceptId && rateKey(r) === rateKey({...row, freelancer_id:fid}));
 
 async function insertRates(f, rows){
   if(!rows.length) return;
@@ -237,11 +235,11 @@ function manageRates(id, editId = null){
   const rates = ratesOf(id);
   const cur = editId ? rates.find(r => r.id === editId) : null;
   openModal(`<h3>Rate ${esc(f.name)}</h3>
-    <p>Satu freelancer bisa punya rate berbeda untuk tiap event. Rate event <b>${GENERAL_EVENT}</b> dipakai bila event booking belum punya rate khusus.</p>
+    <p>Satu freelancer bisa memegang beberapa peran, dengan rate berbeda untuk tiap peran & event. Rate event <b>${GENERAL_EVENT}</b> dipakai bila event booking belum punya rate khusus.</p>
     ${schemaBanner()}
     <div style="text-align:left;margin-top:16px">
       ${rates.length ? `<div class="fl-ratelist">${rates.map(r => `<div class="fl-rate ${r.id === editId ? 'on' : ''}">
-          <div style="min-width:0"><div class="ev">${esc(r.event)}</div>${r.note ? `<div class="tsub">${esc(r.note)}</div>` : ''}</div>
+          <div style="min-width:0"><div class="ev">${esc(r.event)}</div><div class="tsub">${esc(roleName(rateRole(r)))}${r.note ? ' · ' + esc(r.note) : ''}</div></div>
           <span class="v">${rateText(r)}</span>
           <button class="ibtn" data-rtedit="${r.id}" title="Ubah rate" aria-label="Ubah rate">${ICON.edit}</button>
           <button class="ibtn del" data-rtdel="${r.id}" title="Hapus rate" aria-label="Hapus rate">${ICON.del}</button>
@@ -250,13 +248,14 @@ function manageRates(id, editId = null){
 
       <div class="mlabel" style="margin-top:20px">${cur ? 'Ubah rate' : 'Tambah rate'}</div>
       <div class="fgrid two" style="margin-top:10px">
+        <div class="fld"><label>Peran</label><select id="rtRole">${roleOpts(cur ? rateRole(cur) : f.role)}</select></div>
         <div class="fld"><label>Event</label><select id="rtEvent">${selectOpts(eventList(), cur?.event ?? eventList()[0])}</select></div>
-        <div class="fld"><label>Rate type</label><select id="rtType">${selectOpts(rateTypes(), cur?.rate_type ?? rateTypes()[0])}</select></div>
       </div>
       <div class="fgrid two" style="margin-top:11px">
+        <div class="fld"><label>Rate type</label><select id="rtType">${selectOpts(rateTypes(), cur?.rate_type ?? rateTypes()[0])}</select></div>
         <div class="fld money"><label>Rate</label><input id="rtVal" inputmode="numeric" placeholder="Rp0"></div>
-        <div class="fld"><label>Catatan (opsional)</label><input id="rtNote" placeholder="mis. termasuk transport" value="${esc(cur?.note || '')}"></div>
       </div>
+      <div class="fld" style="margin-top:11px"><label>Catatan (opsional)</label><input id="rtNote" placeholder="mis. termasuk transport" value="${esc(cur?.note || '')}"></div>
       <div id="rtErr" class="fl-err"></div>
       <div style="display:flex;gap:8px;margin-top:12px">
         ${cur ? '<button class="btn soft sm" id="rtCancel">Batal ubah</button>' : ''}
@@ -283,8 +282,8 @@ function manageRates(id, editId = null){
   });
   $('#rtSave').onclick = async () => {
     if(needSchema()) return;
-    const row = {event:$('#rtEvent').value, rate_type:$('#rtType').value, rate:moneyVal(val), note:$('#rtNote').value.trim() || null};
-    if(isDup(id, row.event, row.rate_type, cur?.id)) return showErr('#rtErr', `Rate ${row.event} · ${row.rate_type} sudah ada — ubah yang lama saja.`);
+    const row = {role:$('#rtRole').value, event:$('#rtEvent').value, rate_type:$('#rtType').value, rate:moneyVal(val), note:$('#rtNote').value.trim() || null};
+    if(isDup(id, row, cur?.id)) return showErr('#rtErr', `Rate ${roleName(row.role)} · ${row.event} · ${row.rate_type} sudah ada — ubah yang lama saja.`);
     try{
       if(cur){
         await api('freelancer_rates?id=eq.' + cur.id, {method:'PATCH', body:row, prefer:'return=minimal'});
@@ -385,14 +384,14 @@ function manageOptions(back){
 /* ---------- tambah freelancer (langsung dengan beberapa rate) ---------- */
 function addFreelancer(){
   openModal(`<h3>Tambah Freelancer</h3>
-    <p>Rate bisa lebih dari satu — berbeda untuk tiap event.</p>
+    <p>Rate bisa lebih dari satu — berbeda untuk tiap peran & event. Freelancer yang bisa beberapa peran cukup ditambah rate untuk peran lainnya.</p>
     ${schemaBanner()}
     <div class="fld" style="margin-top:16px"><label>Nama <span style="color:var(--primary)">*</span></label><input id="nfName" placeholder="Nama lengkap"></div>
-    <div class="fld" style="margin-top:11px"><label>Peran</label>
-      <select id="nfRole">${Object.entries(ROLE_LABEL).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select></div>
+    <div class="fld" style="margin-top:11px"><label>Peran utama</label>
+      <select id="nfRole">${roleOpts('PHOTOGRAPHER')}</select></div>
 
     <div style="text-align:left;margin-top:16px">
-      <div class="mlabel">Rate per event</div>
+      <div class="mlabel">Rate per peran & event</div>
       <div id="nfRates" style="margin-top:10px"></div>
       <button class="btn soft sm" id="nfAddRate" type="button">+ Tambah rate event</button>
     </div>
@@ -406,31 +405,41 @@ function addFreelancer(){
     <div id="nfErr" class="fl-err"></div>
     <div class="acts"><button class="btn soft" data-mclose>Batal</button><button class="btn" id="nfSave">Simpan</button></div>`);
 
-  const addRow = event => {
+  const addRow = (event, role) => {
     const el = document.createElement('div');
     el.className = 'fl-raterow';
     el.innerHTML = `
-      <select data-k="event" aria-label="Event">${selectOpts(eventList(), event)}</select>
-      <select data-k="type" aria-label="Rate type">${selectOpts(rateTypes(), rateTypes()[0])}</select>
-      <div class="fld money"><input data-k="rate" inputmode="numeric" placeholder="Rp0" aria-label="Rate"></div>
+      <div class="fld"><label>Event</label><select data-k="event">${selectOpts(eventList(), event)}</select></div>
+      <div class="fld"><label>Peran</label><select data-k="role">${roleOpts(role)}</select></div>
+      <div class="fld"><label>Rate type</label><select data-k="type">${selectOpts(rateTypes(), rateTypes()[0])}</select></div>
+      <div class="fld money"><label>Rate</label><input data-k="rate" inputmode="numeric" placeholder="Rp0"></div>
       <button class="ibtn del" type="button" title="Hapus baris" aria-label="Hapus baris">${ICON.del}</button>`;
     money(el.querySelector('[data-k=rate]'), 0);
+    // peran baris mengikuti peran utama sampai diubah manual
+    el.querySelector('[data-k=role]').onchange = e => e.target.dataset.touched = '1';
     el.querySelector('button').onclick = () => el.remove();
     $('#nfRates').appendChild(el);
   };
-  addRow(GENERAL_EVENT);
-  $('#nfAddRate').onclick = () => addRow(eventList().find(e => !$$('#nfRates [data-k=event]').some(s => s.value === e)) || GENERAL_EVENT);
+  const mainRole = () => $('#nfRole').value;
+  $('#nfRole').onchange = () => $$('#nfRates [data-k=role]').forEach(s => { if(!s.dataset.touched) s.value = mainRole(); });
+  addRow(GENERAL_EVENT, mainRole());
+  $('#nfAddRate').onclick = () => {
+    const used = $$('#nfRates .fl-raterow').filter(el => el.querySelector('[data-k=role]').value === mainRole())
+      .map(el => el.querySelector('[data-k=event]').value);
+    addRow(eventList().find(e => !used.includes(e)) || GENERAL_EVENT, mainRole());
+  };
 
   $('#nfSave').onclick = async () => {
     const name = $('#nfName').value.trim();
     if(!name) return showErr('#nfErr', 'Nama wajib diisi.');
     const rates = $$('#nfRates .fl-raterow').map(el => ({
+      role: el.querySelector('[data-k=role]').value,
       event: el.querySelector('[data-k=event]').value,
       rate_type: el.querySelector('[data-k=type]').value,
       rate: moneyVal(el.querySelector('[data-k=rate]'))
     })).filter(r => r.rate > 0);
-    const keys = rates.map(r => (r.event + '|' + r.rate_type).toLowerCase());
-    if(new Set(keys).size !== keys.length) return showErr('#nfErr', 'Ada rate dengan event & rate type yang sama dua kali.');
+    const keys = rates.map(r => [r.role, r.event, r.rate_type].join('|').toLowerCase());
+    if(new Set(keys).size !== keys.length) return showErr('#nfErr', 'Ada rate dengan peran, event & rate type yang sama dua kali.');
     if(rates.length && S.data.flSchemaMissing) return showErr('#nfErr', 'Jalankan schema.sql terbaru dulu supaya rate bisa disimpan.');
 
     const btn = $('#nfSave'); btn.disabled = true;
@@ -443,7 +452,7 @@ function addFreelancer(){
       }});
       S.data.freelancers.push(f);
       S.data.freelancers.sort((a, b) => a.name.localeCompare(b.name));
-      await logAct('create', 'Freelancer', name, ROLE_LABEL[f.role]);
+      await logAct('create', 'Freelancer', name, uniq([f.role, ...rates.map(r => r.role)]).map(roleName).join(', '));
       await insertRates(f, rates);
     }catch(e){ btn.disabled = false; return showErr('#nfErr', 'Gagal menyimpan: ' + e.message); }
     closeModal(); RENDER.freelancer(); toast(name + ' ditambahkan');
@@ -476,7 +485,7 @@ function statsFor(fl, list){
   const mine = list.filter(a => a.fid === fl.id).sort((a, b) => a.b.session_date.localeCompare(b.b.session_date));
   const t = today();
   const count = key => mine.reduce((m, a) => (m[key(a)] = (m[key(a)] || 0) + 1, m), {});
-  const fee = mine.reduce((n, a) => n + (rateFor(fl.id, a.b.service)?.rate || 0), 0);
+  const fee = mine.reduce((n, a) => n + (rateFor(fl.id, a.b.service, SLOT_ROLE[a.slot])?.rate || 0), 0);
   return {
     fl, jobs: mine, total: mine.length,
     ph: mine.filter(a => a.slot === 'photographer_id').length,
@@ -553,7 +562,7 @@ function renderReport(tabs){
       </tr></thead>
       <tbody>${stats.map((s, i) => `<tr class="${s.total ? '' : 'fl-zero'}">
         <td class="tsub">${s.total ? i + 1 : '—'}</td>
-        <td><div class="tname">${esc(s.fl.name)}</div><div class="tsub">${ROLE_LABEL[s.fl.role] || esc(s.fl.role)}${s.fl.is_active ? '' : ' · nonaktif'}</div></td>
+        <td><div class="tname">${esc(s.fl.name)}</div><div class="tsub">${esc(rolesText(s.fl))}${s.fl.is_active ? '' : ' · nonaktif'}</div></td>
         <td><div class="fl-freq"><b>${s.total}×</b><div class="track"><div class="fill" style="width:${max ? (s.total / max * 100).toFixed(1) : 0}%"></div></div></div></td>
         <td class="r num">${s.ph}</td><td class="r num">${s.vg}</td>
         <td>${s.events.slice(0, 3).map(([e, n]) => `<span class="badge b-grey" style="margin:0 4px 4px 0">${esc(e)} ${n}</span>`).join('') || '<span class="tsub">—</span>'}</td>
@@ -578,7 +587,7 @@ function renderReport(tabs){
   $$('[data-flrep]').forEach(b => b.onclick = () => freelancerReport(b.dataset.flrep));
   $('#flCsv').onclick = () => downloadCsv(`kalaatma-penugasan-freelancer-${today()}.csv`,
     ['Freelancer','Peran','Total penugasan','Sebagai Photographer','Sebagai Videographer','Event','Terakhir','Berikutnya','Estimasi fee'],
-    stats.map(s => [s.fl.name, ROLE_LABEL[s.fl.role] || s.fl.role, s.total, s.ph, s.vg,
+    stats.map(s => [s.fl.name, rolesText(s.fl), s.total, s.ph, s.vg,
       s.events.map(([e, n]) => `${e} (${n})`).join('; '), s.last || '', s.next || '', s.fee]));
 }
 
@@ -592,7 +601,7 @@ function freelancerReport(id){
   const months = monthSpan(f, s.jobs).filter(ym => s.months[ym]).map(ym => [monthLabel(ym), s.months[ym]]);
   const t = today();
   openModal(`<h3>Laporan ${esc(fl.name)}</h3>
-    <p>${ROLE_LABEL[fl.role] || esc(fl.role)} · ${calLabel(f.from, f.to, f.monthLabel)}${f.role !== 'ALL' ? ' · sebagai ' + SLOT_LABEL[f.role] : ''}</p>
+    <p>${esc(rolesText(fl))} · ${calLabel(f.from, f.to, f.monthLabel)}${f.role !== 'ALL' ? ' · sebagai ' + SLOT_LABEL[f.role] : ''}</p>
     <div style="text-align:left;margin-top:16px">
       <div class="fl-mini">
         <div><b>${s.total}×</b><span>ditugaskan</span></div>
@@ -604,7 +613,7 @@ function freelancerReport(id){
       ${s.total ? `<div class="mlabel" style="margin-top:18px">Per bulan</div>${bars(months, Math.max(...months.map(x => x[1])))}` : ''}
       <div class="mlabel" style="margin-top:18px">Daftar penugasan (${s.total})</div>
       <div style="margin-top:10px">${s.jobs.length ? [...s.jobs].reverse().map(a => {
-        const r = rateFor(fl.id, a.b.service);
+        const r = rateFor(fl.id, a.b.service, SLOT_ROLE[a.slot]);
         return `<div class="deleg"><div style="min-width:0">
           <div class="dn">${esc(a.b.client_display)}</div>
           <div class="tsub">${fmtDate(a.b.session_date)} · ${esc(a.b.service)} · ${SLOT_LABEL[a.slot]}</div>
@@ -618,7 +627,7 @@ function freelancerReport(id){
   $('#flJobCsv') && ($('#flJobCsv').onclick = () => downloadCsv(
     `kalaatma-penugasan-${fl.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${today()}.csv`,
     ['Tanggal','Client','Event','Sebagai','Status','Rate','Rate type'],
-    s.jobs.map(a => { const r = rateFor(fl.id, a.b.service);
+    s.jobs.map(a => { const r = rateFor(fl.id, a.b.service, SLOT_ROLE[a.slot]);
       return [a.b.session_date, a.b.client_display, a.b.service, SLOT_LABEL[a.slot], a.b.status, r?.rate ?? '', r?.rate_type ?? '']; })));
 }
 

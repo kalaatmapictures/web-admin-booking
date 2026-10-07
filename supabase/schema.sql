@@ -95,7 +95,8 @@ on conflict (kind, label) do nothing;
 
 /* Satu freelancer bisa punya beberapa rate, berbeda per event.
    event & rate_type disimpan sebagai teks label supaya rate lama tetap
-   terbaca walau pilihannya dihapus. */
+   terbaca walau pilihannya dihapus. Peran (role) per rate membuat satu
+   freelancer bisa ditugaskan di beberapa peran. */
 create table if not exists public.freelancer_rates (
   id            uuid primary key default gen_random_uuid(),
   freelancer_id uuid not null references public.freelancers (id) on delete cascade,
@@ -106,6 +107,11 @@ create table if not exists public.freelancer_rates (
   created_at    timestamptz not null default now()
 );
 create index if not exists freelancer_rates_fl_idx on public.freelancer_rates (freelancer_id);
+-- satu freelancer bisa memegang beberapa peran; rate dicatat per peran
+alter table public.freelancer_rates add column if not exists role text
+  check (role in ('PHOTOGRAPHER','VIDEOGRAPHER','EDITOR','ASSISTANT','WCC','OTHER'));
+update public.freelancer_rates r set role = f.role
+  from public.freelancers f where f.id = r.freelancer_id and r.role is null;
 
 -- pindahkan rate lama (satu rate per freelancer) menjadi rate event "Umum", sekali saja
 insert into public.freelancer_rates (freelancer_id, event, rate_type, rate)

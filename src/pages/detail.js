@@ -5,6 +5,7 @@
 import { $, $$, S, F, RENDER, rp, esc, today, fmtDate, timeRange, initials, toast, money, moneyVal,
          openDrawer, openModal, closeModal, saveBooking, addPayment, crewBadge, payBadge,
          BOOKING_STATUSES, dpPercent } from '../core.js';
+import { hasRole, rateFor } from '../freelancers.js';
 
 const rerender = () => RENDER[S.page]();
 /* jalankan aksi tulis; tampilkan galat tanpa membuat UI macet */
@@ -71,8 +72,10 @@ export function bookingDrawer(id){
   if(!b) return;
   const pays = S.data.payments.filter(p=>p.booking_id===id);
   const pct = dpPercent();
-  const opt = (role, sel) => S.data.freelancers.filter(f=>f.is_active && (f.role===role||f.role==='OTHER'))
-    .map(f=>`<option value="${f.id}" ${sel===f.id?'selected':''}>${esc(f.name)}</option>`).join('');
+  // freelancer muncul di semua peran yang dipegangnya (peran utama + peran di rate-nya)
+  const opt = (role, sel) => S.data.freelancers.filter(f=>(f.is_active && (hasRole(f, role)||f.role==='OTHER')) || f.id===sel)
+    .map(f=>{ const r = rateFor(f.id, b.service, role);
+      return `<option value="${f.id}" ${sel===f.id?'selected':''}>${esc(f.name)}${r?` — ${rp(r.rate)}`:''}</option>`; }).join('');
 
   const crewCard = (role, roleLabel, name, wa, email, needKey, need, selKey, selVal) => `
     <div style="margin-bottom:14px">
