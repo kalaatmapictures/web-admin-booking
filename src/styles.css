@@ -577,6 +577,120 @@ body.saving #page{pointer-events:none;opacity:.7;transition:opacity .2s}
 #invoiceDoc .tot td{border-top:2px solid #4A46E0;font-weight:700;font-size:15px;color:#4A46E0;padding-top:12px}
 #invoiceDoc .ifoot{margin-top:26px;padding-top:16px;border-top:2px solid #E5E7F8;text-align:center;color:#8A90BC;font-size:11px}
 #invoiceDoc .ifoot b{display:block;color:#1B1D3A;font-size:13px;font-weight:700}
+
+/* =====================================================================
+   TAMPILAN HP
+   ===================================================================== */
+.mobnav button{position:relative}
+.mcnt{position:absolute;top:3px;right:calc(50% - 20px);min-width:16px;height:16px;border-radius:99px;background:var(--err);color:#fff;font-size:9px;font-style:normal;font-weight:700;display:grid;place-items:center;padding:0 4px}
+.mobnav button.on .mcnt{background:#fff;color:var(--primary)}
+.mcnt.hide{display:none}
+.more-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.more-grid button{display:grid;justify-items:center;gap:6px;padding:14px 6px;border-radius:16px;background:var(--bg);color:var(--ink-2);font-size:11.5px;font-weight:600;text-align:center;line-height:1.25}
+.more-grid button svg{width:22px;height:22px;color:var(--primary)}
+.more-grid button.on{background:var(--primary);color:#fff}
+.more-grid button.on svg{color:#fff}
+.more-foot{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:14px;border-top:1.5px dashed var(--line)}
+.more-foot .btn{margin-left:auto}
+
+.mcal-nav{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.mcal-nav h3{flex:1;text-align:center;font-size:16px;margin:0;text-transform:capitalize}
+.mcal-dots{display:none;gap:3px;justify-content:center;margin-top:6px}
+.mcal-dots i{width:7px;height:7px;border-radius:99px;background:var(--err)}
+.mcal-dots i.ok{background:var(--ok)}
+.cal-agenda{padding:6px 14px}
+.cal-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 0;border-bottom:1.5px dashed var(--line)}
+.cal-item:last-child{border-bottom:0}
+.cal-item .d{width:44px;flex:0 0 auto;display:grid;justify-items:center;font-size:10.5px;color:var(--muted);text-transform:uppercase;background:var(--tint);border-radius:12px;padding:6px 0}
+.cal-item .d b{font-size:16px;color:var(--primary);line-height:1.1}
+.cal-item .i{flex:1;min-width:0;display:grid}
+.cal-item .i b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-item .i .tsub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+@media(max-width:700px){
+  .hide-m{display:none}
+  body{overflow-x:clip}
+  .main{padding:14px 14px calc(96px + env(safe-area-inset-bottom))}
+  .topbar{margin-bottom:14px}
+
+  /* menu bawah: 5 tombol pas satu layar */
+  .mobnav{overflow:visible;padding-bottom:calc(7px + env(safe-area-inset-bottom))}
+  .mobnav button{min-width:0;flex:1 1 0}
+
+  /* kartu & KPI lebih ringkas */
+  .card{padding:15px}
+  .grid{gap:9px}
+  .kpi{padding:13px 14px}
+  .kpi .lbl{font-size:9.5px;letter-spacing:.06em}
+  .kpi .val{font-size:18px;margin-top:3px}
+  .kpi .cap{font-size:10.5px}
+  .kpi.accent::after{width:120px;height:120px;top:-60px;right:-40px}
+  .jb-ov-grid,.tk-ov-grid{grid-template-columns:repeat(3,1fr)}
+  .jb-ov-grid + .g3{grid-template-columns:repeat(3,1fr)}
+  .jb-ov .cap,.tk-ov-grid .cap{display:none}
+  .sec-h{margin:18px 0 10px}
+
+  /* baris filter: dropdown & tombol menyesuaikan lebar layar */
+  .bk-bar,.jb-bar{gap:8px}
+  .bk-bar .selchip,.jb-bar .selchip{flex:1 1 calc(50% - 8px);min-width:0;justify-content:space-between}
+  .selchip > span{white-space:nowrap}
+  .selchip select{max-width:none;min-width:0;flex:1}
+  .bk-bar > .btn,.jb-bar > .chips > .btn{flex:1 1 auto}
+  .jb-bar .chips[style*="margin-left:auto"]{margin-left:0!important;width:100%}
+  .jb-bar .chips[style*="margin-left:auto"] > *{flex:1}
+  .fl-tabs{width:100%}
+  .fl-tabs button{flex:1}
+
+  /* papan kanban: satu kolom selebar layar, geser ke samping */
+  .jb-wrap{scroll-snap-type:x mandatory;margin:0 -14px;padding:0 14px 10px;scroll-padding:0 14px}
+  .jb-col{flex:0 0 86%;min-width:0;scroll-snap-align:start}
+
+  /* tabel → kartu */
+  #page table.mtable,#page table.mtable tbody{display:block}
+  #page table.mtable thead{display:none}
+  #page table.mtable tr{display:block;padding:12px 0;border-top:1.5px dashed var(--line)}
+  #page table.mtable tbody tr:first-child{border-top:0;padding-top:2px}
+  #page table.mtable tbody tr:last-child{padding-bottom:2px}
+  #page table.mtable td{display:block;position:relative;border:0;padding:5px 0 5px 42%;text-align:right;min-height:26px}
+  #page table.mtable td::before{content:attr(data-label);position:absolute;left:0;top:7px;width:40%;text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  #page table.mtable td:first-child{padding:0 0 6px;text-align:left;font-size:14px}
+  #page table.mtable td:first-child::before,#page table.mtable td[data-label=""]::before{display:none}
+  #page table.mtable td[data-label=""]{padding-left:0}
+  #page table.mtable td:empty{display:none}
+  #page table.mtable tr.day-row td{padding:8px 10px;text-align:left;border-radius:10px}
+  #page table.mtable tr.day-row{padding:6px 0;border:0}
+  #page table.mtable tr.click:hover{background:none}
+  #page table.mtable .lbs,#page table.mtable .dlinks{justify-content:flex-end}
+  #page .tablewrap{overflow:visible}
+  #page table.mtable tfoot{display:block;border-top:2px solid var(--line);margin-top:6px;padding-top:10px}
+  #page table.mtable tfoot tr{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+  #page table.mtable tfoot td{display:block;border:0;padding:2px 0}
+  #page table.mtable tfoot td:first-child{flex:1 1 100%}
+  #page table.mtable tfoot td:empty{display:none}
+  /* laporan freelancer: nama jadi judul kartu, nomor urut disembunyikan */
+  #page table.fl-rep td:first-child{display:none}
+  #page table.fl-rep td:nth-child(2){padding:0 0 6px;text-align:left;font-size:14px}
+  #page table.fl-rep td:nth-child(2)::before{display:none}
+  .mcal-nav .btn{min-width:44px;min-height:40px;font-size:16px}
+
+  /* kalender: titik di tanggal, detail di daftar jadwal */
+  .mcal{gap:4px}
+  .mcal-dow{gap:4px}
+  .mcal-d{min-height:48px;padding:5px 3px;text-align:center;border-radius:10px}
+  .mcal-ev,.mcal-d .more{display:none}
+  .mcal-dots{display:flex}
+
+  /* modal muncul dari bawah, mudah dijangkau jempol */
+  .modal .box{left:0;right:0;top:auto;bottom:0;transform:none;width:100%;max-width:none!important;max-height:90vh;
+    border-radius:24px 24px 0 0;padding:22px 18px calc(20px + env(safe-area-inset-bottom));animation:sheetUp .3s var(--ease)}
+  #invoiceModal .box{max-height:94vh}
+}
+@media(max-width:480px){
+  /* dropdown filter satu per baris supaya teksnya tidak terpotong */
+  .bk-bar .selchip,.jb-bar .selchip{flex:1 1 100%}
+}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+
 @media print{
   body *{visibility:hidden!important}
   #invoiceModal,#invoiceModal *{visibility:visible!important}

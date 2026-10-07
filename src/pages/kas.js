@@ -45,9 +45,9 @@ RENDER.kas = () => {
     </div>
 
     <div class="jb-bar">
-      <div class="chips">
-        ${catGroups().map(c => `<button class="chip alt ${f.cat===c.id?'on':''}" data-kascat="${esc(c.id)}">${esc(c.label)}</button>`).join('')}
-      </div>
+      <label class="selchip"><span>Kategori</span><select id="kasCat" aria-label="Kategori">
+          ${catGroups().map(c => `<option value="${esc(c.id)}" ${f.cat===c.id?'selected':''}>${esc(c.label)}</option>`).join('')}
+        </select></label>
       <div class="chips" style="margin-left:auto">
         ${dateButton('kasDate', f)}
         <button class="btn sm" id="addTx">+ Catat transaksi</button>
@@ -89,7 +89,7 @@ RENDER.kas = () => {
       </tr></tfoot>
     </table></div></div>` : empty('Belum ada transaksi','Tidak ada transaksi yang cocok dengan filter ini.')}`;
 
-  $$('[data-kascat]').forEach(b => b.onclick = () => { f.cat = b.dataset.kascat; RENDER.kas(); });
+  $('#kasCat').onchange = e => { f.cat = e.target.value; RENDER.kas(); };
   bindDateButton('kasDate', f, RENDER.kas);
   $('#addTx').onclick = () => txForm(null);
   $$('[data-txedit]').forEach(b => b.onclick = () => txForm(S.data.transactions.find(t => t.id === b.dataset.txedit)));
