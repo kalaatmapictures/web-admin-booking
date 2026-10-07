@@ -2,7 +2,7 @@
    Daftar freelancer + rate per event (rate type & event bisa diatur admin)
    + laporan seberapa sering tiap freelancer ditugaskan. */
 import { $, $$, S, F, RENDER, rp, esc, today, fmtDate, initials, toast, money, moneyVal,
-         openModal, closeModal, confirmBox, saveRow, saveBooking, api, logAct, describe } from '../core.js';
+         openModal, closeModal, confirmBox, saveRow, saveBooking, api, logAct, describe, deleteFreelancer } from '../core.js';
 import { STAGES, stageOf } from '../stages.js';
 import { calLabel, dateButton, bindDateButton, dISO } from '../datepicker.js';
 import { ROLE_LABEL, GENERAL_EVENT, uniq, ratesOf, rateRole, roleName, rolesOf, hasRole, rolesText, rateFor } from '../freelancers.js';
@@ -83,7 +83,7 @@ function renderList(tabs){
       const open = S.data.bookings.filter(b => stageOf(b) && slots.some(r => needsSlot(b, r))).length;
       const rates = ratesOf(f.id);
       const multi = rolesOf(f).length > 1;
-      return `<div class="card fl-card">
+      return `<div class="card fl-card ${f.is_active ? '' : 'fl-inactive'}">
         <div class="fl-head">
           <span class="fl-av">${initials(f.name)}</span>
           <div style="min-width:0">
@@ -91,6 +91,7 @@ function renderList(tabs){
             <div class="tsub">${esc(rolesText(f))}</div>
           </div>
           <span class="badge ${f.is_active?'b-ok':'b-grey'}">${f.is_active?'Aktif':'Nonaktif'}</span>
+          <button class="ibtn del" data-flrm="${f.id}" title="Nonaktifkan / hapus freelancer" aria-label="Nonaktifkan atau hapus freelancer">${ICON.del}</button>
         </div>
 
         <div class="fl-rows">
@@ -120,7 +121,9 @@ function renderList(tabs){
         </div>
 
         <div class="fl-acts">
-          ${slots.length
+          ${!f.is_active
+            ? `<span class="fl-note">Nonaktif — aktifkan lewat ikon hapus untuk menugaskan lagi</span>`
+            : slots.length
             ? `<button class="btn sm fl-main" data-fldel="${f.id}">Delegasikan${open?` <span class="fl-n">${open}</span>`:''}</button>`
             : `<span class="fl-note">Tidak ada slot crew untuk peran ini</span>`}
           <div class="fl-row2">
@@ -139,8 +142,46 @@ function renderList(tabs){
   $$('[data-flgear]').forEach(b => b.onclick = () => editGear(b.dataset.flgear));
   $$('[data-fldel]').forEach(b => b.onclick = () => delegateModal(b.dataset.fldel));
   $$('[data-flrep]').forEach(b => b.onclick = () => freelancerReport(b.dataset.flrep));
+  $$('[data-flrm]').forEach(b => b.onclick = () => removeFreelancer(b.dataset.flrm));
   $('#addFl').onclick = () => addFreelancer();
   $('#flOpts').onclick = () => manageOptions();
+}
+
+/* ---------- nonaktifkan / hapus ----------
+   Nonaktif: riwayat & laporan tetap utuh, tidak muncul di pilihan crew.
+   Hapus permanen: rate ikut terhapus, freelancer dilepas dari semua booking. */
+function removeFreelancer(id){
+  const f = S.data.freelancers.find(x => x.id === id);
+  const jobs = S.data.bookings.filter(b => b.photographer_id === id || b.videographer_id === id);
+  const upcoming = jobs.filter(b => b.session_date >= today() && b.status !== 'CANCELLED').length;
+  openModal(`<div class="warnicon" style="background:var(--err-bg);color:var(--err)">🗑</div>
+    <h3>${esc(f.name)}</h3>
+    <p>${esc(rolesText(f))} · tercatat di ${jobs.length} booking${upcoming ? `, ${upcoming} di antaranya mendatang` : ''}.</p>
+    <div style="text-align:left;margin-top:16px;display:grid;gap:10px">
+      <div class="deleg"><div style="min-width:0">
+        <div class="dn">${f.is_active ? 'Nonaktifkan' : 'Aktifkan kembali'}</div>
+        <div class="tsub">${f.is_active
+          ? 'Untuk freelancer yang berhenti. Riwayat & laporan tetap tersimpan, tapi tidak muncul lagi di pilihan crew.'
+          : 'Freelancer muncul lagi di pilihan crew.'}</div>
+      </div><button class="btn soft sm" id="flToggle">${f.is_active ? 'Nonaktifkan' : 'Aktifkan'}</button></div>
+      <div class="deleg"><div style="min-width:0">
+        <div class="dn" style="color:var(--err)">Hapus permanen</div>
+        <div class="tsub">Data & rate-nya dihapus${jobs.length ? `, dan ${jobs.length} booking kehilangan crew ini (laporan penugasannya ikut hilang)` : ''}. Tidak bisa dibatalkan.</div>
+      </div><button class="btn danger sm" id="flDelete">Hapus</button></div>
+    </div>
+    <div id="flRmErr" class="fl-err"></div>
+    <div class="acts"><button class="btn soft" data-mclose>Batal</button></div>`);
+  $('#flToggle').onclick = async () => {
+    try{ await saveRow('freelancers', id, {is_active: !f.is_active}, 'freelancers'); }
+    catch(e){ return showErr('#flRmErr', 'Gagal menyimpan: ' + e.message); }
+    closeModal(); RENDER.freelancer(); toast(f.is_active ? `${f.name} diaktifkan kembali` : `${f.name} dinonaktifkan`);
+  };
+  $('#flDelete').onclick = async () => {
+    $('#flDelete').disabled = true;
+    try{ await deleteFreelancer(id); }
+    catch(e){ $('#flDelete').disabled = false; return showErr('#flRmErr', 'Gagal menghapus: ' + e.message); }
+    closeModal(); RENDER.freelancer(); toast(`${f.name} dihapus`);
+  };
 }
 
 /* ---------- gear ---------- */

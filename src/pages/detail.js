@@ -4,7 +4,7 @@
    ===================================================================== */
 import { $, $$, S, F, RENDER, rp, esc, today, fmtDate, timeRange, initials, toast, money, moneyVal,
          openDrawer, openModal, closeModal, saveBooking, addPayment, crewBadge, payBadge,
-         BOOKING_STATUSES, dpPercent } from '../core.js';
+         BOOKING_STATUSES, dpPercent, closeDrawer, deleteBooking } from '../core.js';
 import { hasRole, rateFor } from '../freelancers.js';
 
 const rerender = () => RENDER[S.page]();
@@ -65,6 +65,40 @@ function clientWaUrl(b){
   const msg = `Halo ${b.client_display}, terima kasih sudah booking ${b.service} di Kalaatma Pictures.\n\n`
     + `Booking ID: ${b.booking_id}\nPaket: ${b.package_name}\nTanggal: ${fmtDate(b.session_date,true)}\nJam: ${timeRange(b)} WIB\n\n`;
   return `https://wa.me/${waNumber(b.whatsapp)}?text=${encodeURIComponent(msg)}`;
+}
+
+/* Hapus booking (dari drawer atau tabel Booking). Pembayaran & catatan kas
+   dari pembayaran itu ikut terhapus, jadi disebutkan jelas di konfirmasi. */
+export function confirmDeleteBooking(id){
+  const b = S.data.bookings.find(x => x.id === id);
+  if(!b) return;
+  const pays = S.data.payments.filter(p => p.booking_id === id);
+  const paid = pays.reduce((n, p) => n + p.amount, 0);
+  openModal(`<div class="warnicon" style="background:var(--err-bg);color:var(--err)">🗑</div>
+    <h3>Hapus booking ${esc(b.client_display)}?</h3>
+    <p>${esc(b.booking_id)} · ${esc(b.service)} · ${fmtDate(b.session_date)}</p>
+    ${pays.length ? `<div class="banner" style="margin:14px 0 0">${pays.length} pembayaran (${rp(paid)}) dan catatan kas-nya akan ikut terhapus.</div>` : ''}
+    <p style="margin-top:12px">Booking dihapus permanen dan tidak bisa dikembalikan. Kalau client hanya batal dan datanya masih ingin disimpan, ubah statusnya ke <b>CANCELLED</b> saja.</p>
+    <div class="acts">
+      <button class="btn soft" data-mclose>Batal</button>
+      ${b.status !== 'CANCELLED' ? '<button class="btn soft" id="dbCancel">Jadikan CANCELLED</button>' : ''}
+      <button class="btn danger" id="dbDelete">Hapus permanen</button>
+    </div>`);
+  const cancel = $('#dbCancel');
+  if(cancel) cancel.onclick = async () => {
+    cancel.disabled = true;
+    const ok = await safely(() => saveBooking(id, {status:'CANCELLED'}));
+    closeModal(); if(ok) toast('Booking ditandai CANCELLED');
+    if($('#drawer').classList.contains('open')) bookingDrawer(id);
+    rerender();
+  };
+  $('#dbDelete').onclick = async () => {
+    $('#dbDelete').disabled = true;
+    const ok = await safely(() => deleteBooking(id));
+    closeModal();
+    if(ok){ closeDrawer(); toast(`Booking ${b.client_display} dihapus`); }
+    rerender();
+  };
 }
 
 export function bookingDrawer(id){
@@ -201,6 +235,11 @@ export function bookingDrawer(id){
     <div style="display:grid;gap:9px">
       <button class="btn block" id="openInv">Lihat Invoice</button>
       <button class="btn soft block" id="dlInvDirect">Unduh Invoice PDF</button>
+    </div>
+
+    <div class="dangerzone">
+      <div><b>Hapus booking</b><div class="tsub">Untuk data testing atau calon client yang tidak jadi. Tidak bisa dibatalkan.</div></div>
+      <button class="btn danger sm" id="delBooking">Hapus</button>
     </div>`);
 
   // pricing
@@ -266,6 +305,8 @@ export function bookingDrawer(id){
     if(await safely(() => saveBooking(id, {status: next}))) toast('Status diperbarui');
     bookingDrawer(id); rerender();
   };
+
+  $('#delBooking').onclick = () => confirmDeleteBooking(id);
 
   // deliverables
   $('#saveLinks').onclick = async () => {
