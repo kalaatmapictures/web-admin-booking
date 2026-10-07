@@ -265,7 +265,7 @@ function renderServices(){
         <div class="mn-item ${p.hidden ? 'is-hidden' : ''}">
           <div class="info">
             <div class="t">${esc(p.name)}
-              ${p.bestSeller ? '<span class="lb lb-grey" style="background:var(--ink);color:#fff">BEST SELLER</span>' : ''}
+              ${p.bestSeller ? '<span class="lb lb-grey" style="background:var(--solid);color:var(--solid-ink)">BEST SELLER</span>' : ''}
               ${p.recommended ? '<span class="lb lb-orange">RECOMMENDED</span>' : ''}
               ${p.hidden ? '<span class="lb lb-grey">Disembunyikan</span>' : ''}</div>
             <div class="tsub">${p.items.length} poin · ${esc(p.items.slice(0, 3).join(', '))}${p.items.length > 3 ? '…' : ''}${g.people && p.min != null ? ` · ${p.min}–${p.max} orang` : ''}</div>

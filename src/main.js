@@ -15,7 +15,9 @@ import './pages/kas.js';
 import './pages/calendar.js';
 import './pages/activity.js';
 import { initInvoice } from './pages/detail.js';
+import { applyTheme } from './theme.js';
 
+applyTheme();
 initShell();
 initInvoice();
 initAuth();

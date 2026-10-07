@@ -130,7 +130,7 @@ export function bookingDrawer(id){
           ${wa?`<a class="btn wa sm" target="_blank" rel="noopener" style="text-decoration:none" href="${waUrl(b,name,wa,roleLabel)}">WhatsApp ${roleLabel}</a>`:''}
           ${email?`<a class="btn soft sm" style="text-decoration:none" href="${mailUrl(b,email,roleLabel)}">Email Freelancer</a>`:''}
         </div>`
-      : `<div class="linkrow" style="background:var(--err-bg);color:#C13A40"><b>⚠ ${roleLabel.toUpperCase()} BELUM DITUGASKAN</b></div>`}
+      : `<div class="linkrow" style="background:var(--err-bg);color:var(--err-ink)"><b>⚠ ${roleLabel.toUpperCase()} BELUM DITUGASKAN</b></div>`}
       ${need?`<div class="fld"><select data-sel="${selKey}">
         <option value="">— Pilih ${roleLabel} —</option>${opt(role, selVal)}</select></div>`:''}
     </div>`;

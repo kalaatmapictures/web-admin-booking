@@ -6,6 +6,7 @@
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, supabaseReady } from './data/supabase.js';
 import { CATALOG_KEY, defaultCatalog, isCatalog } from './shared/catalog.js';
 import { showNotifications } from './pages/detail.js';
+import { applyTheme, themeSeg } from './theme.js';
 
 export const CONFIGURED = supabaseReady();
 
@@ -441,11 +442,15 @@ function buildNav(){
     + `<button id="mobMore">${MORE_ICON}<span>Lainnya</span></button>`;
   $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
   $('#mobMore').onclick = openMoreMenu;
+  $('#themeSide').innerHTML = themeSeg();
+  applyTheme();
   refreshBell();
 }
 function openMoreMenu(){
   openModal(`<h3>Menu</h3>
     <div class="more-grid">${PAGES.map(p => `<button class="${S.page === p.id ? 'on' : ''}" data-more="${p.id}">${svg(p.id)}<span>${p.title}</span></button>`).join('')}</div>
+    <div class="mlabel" style="margin:16px 0 8px">Tampilan</div>
+    ${themeSeg()}
     <div class="more-foot"><div class="tsub">Masuk sebagai <b>${esc(S.admin.name)}</b></div>
       <button class="btn soft sm" id="moreLogout">Keluar</button></div>`);
   $$('[data-more]').forEach(b => b.onclick = () => { closeModal(); go(b.dataset.more); });
@@ -551,7 +556,7 @@ export function chipbar(opts, active, onPick, alt){
 export function customRange(f, onChange){
   const id = 'cr' + (++barSeq);
   HANDLERS[id] = onChange;
-  const st = 'background:#fff;border:0;border-radius:99px;padding:8px 13px;font-size:12px;box-shadow:var(--shadow)';
+  const st = 'background:var(--surface);border:0;border-radius:99px;padding:8px 13px;font-size:12px;box-shadow:var(--shadow)';
   return `<div class="chips" data-range="${id}" style="align-items:center">
     <input type="date" value="${f.from||''}" style="${st}">
     <span style="color:var(--muted);font-size:12px">s/d</span>
