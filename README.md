@@ -55,7 +55,8 @@ BMS selalu memakai data asli di Supabase. Tanpa env Supabase, halaman login mena
    - BMS: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_LANDING_URL`
    - Landing page: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 4. Login ke BMS. Simpan pertama di Menu / Paket & Harga mengisi menu ke database; sebelum itu landing page memakai pricelist bawaan.
-5. Opsional: isi HPP tiap paket di **Paket & Harga** supaya profit di Dashboard akurat.
+5. **Update fitur Freelancer (rate per event & laporan):** jalankan ulang `supabase/schema.sql` sekali. Rate lama tiap freelancer otomatis dipindah menjadi rate event "Umum".
+6. Opsional: isi HPP tiap paket di **Paket & Harga** supaya profit di Dashboard akurat.
 
 ## Struktur
 
