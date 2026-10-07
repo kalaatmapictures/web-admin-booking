@@ -649,9 +649,12 @@ body.saving #page{pointer-events:none;opacity:.7;transition:opacity .2s}
   /* tabel → kartu ringkas 2 kolom: label kecil di atas nilainya */
   #page table.mtable,#page table.mtable tbody{display:block}
   #page table.mtable thead{display:none}
-  #page table.mtable tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 14px;padding:14px 0;border-top:1.5px dashed var(--line)}
-  #page table.mtable tbody tr:first-child{border-top:0;padding-top:2px}
-  #page table.mtable tbody tr:last-child{padding-bottom:2px}
+  /* setiap baris = kartu terpisah, jelas batas antar project */
+  #page .card:has(> .tablewrap > table.mtable){background:transparent;box-shadow:none;padding:0}
+  #page table.mtable tbody{display:grid;gap:12px}
+  #page table.mtable tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 14px;padding:15px 16px;
+    background:var(--surface);border-radius:18px;box-shadow:0 1px 0 var(--line),0 10px 24px -14px rgba(46,42,140,.35);border:1.5px solid #E6E8F5}
+  #page table.mtable td:first-child{padding-bottom:10px;margin-bottom:2px;border-bottom:1.5px solid var(--line)}
   #page table.mtable td{display:block;border:0;padding:0;text-align:left;min-width:0;font-size:13px;overflow-wrap:anywhere}
   #page table.mtable td::before{content:attr(data-label);display:block;margin-bottom:3px;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
   #page table.mtable td:first-child{grid-column:1 / -1;font-size:14px}
@@ -661,19 +664,20 @@ body.saving #page{pointer-events:none;opacity:.7;transition:opacity .2s}
   #page table.mtable td.acts::before{display:none}
   #page table.mtable td.acts > div,#page table.mtable td.acts .rowacts{display:flex!important;flex-wrap:wrap;gap:6px;justify-content:flex-end;width:100%}
   #page table.mtable td .lbs,#page table.mtable td .dlinks{justify-content:flex-start;flex-wrap:wrap}
-  #page table.mtable tr.day-row{display:block;padding:6px 0;border:0}
+  #page table.mtable tr.day-row{display:block;padding:10px 2px 0;border:0;background:none;box-shadow:none}
+  #page table.mtable tr.day-row td{background:none!important;padding:0 2px!important;color:var(--primary)}
   #page table.mtable tr.day-row td{padding:8px 10px;border-radius:10px}
   #page table.mtable tr.day-row td::before{display:none}
   #page table.mtable tr.click:hover{background:none}
   #page .tablewrap{overflow:visible}
-  #page table.mtable tfoot{display:block;border-top:2px solid var(--line);margin-top:6px;padding-top:10px}
+  #page table.mtable tfoot{display:block;margin-top:12px;background:var(--surface);border-radius:18px;padding:14px 16px;box-shadow:0 10px 24px -14px rgba(46,42,140,.35)}
   #page table.mtable tfoot tr{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
   #page table.mtable tfoot td{display:block;border:0;padding:2px 0}
   #page table.mtable tfoot td:first-child{flex:1 1 100%}
   #page table.mtable tfoot td:empty{display:none}
   /* laporan freelancer: nama jadi judul kartu, nomor urut disembunyikan */
   #page table.fl-rep td:first-child{display:none}
-  #page table.fl-rep td:nth-child(2){grid-column:1 / -1;font-size:14px}
+  #page table.fl-rep td:nth-child(2){grid-column:1 / -1;font-size:14px;padding-bottom:10px;border-bottom:1.5px solid var(--line)}
   #page table.fl-rep td:nth-child(2)::before{display:none}
   .mcal-nav .btn{min-width:44px;min-height:40px;font-size:16px}
   /* tombol di judul bagian (mis. Freelancer) berbagi satu baris */
