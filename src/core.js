@@ -141,8 +141,25 @@ export async function loadAll(){
     S.data = {bookings: bookings.map(normBooking), freelancers, payments, leads, clients, transactions, crewFees:[], activity,
               packageCosts: Object.fromEntries(costs.map(c => [c.package_id, c.hpp_estimate]))};
   }
+  await loadFreelancerExtras();
   buildPackages();
   refreshBell();
+}
+
+/* Rate per event & pilihan rate type/event. Tabel ini ditambahkan belakangan:
+   bila schema.sql terbaru belum dijalankan, BMS tetap jalan dan halaman
+   Freelancer menampilkan petunjuk. */
+export async function loadFreelancerExtras(){
+  try{
+    const [rates, options] = await Promise.all([
+      api('freelancer_rates?select=*&order=created_at'),
+      api('freelancer_options?select=*&order=sort_order,label')
+    ]);
+    Object.assign(S.data, {freelancerRates: rates, freelancerOptions: options, flSchemaMissing: false});
+  }catch(e){
+    console.warn('[Kalaatma] tabel rate freelancer belum ada:', e.message);
+    Object.assign(S.data, {freelancerRates: [], freelancerOptions: [], flSchemaMissing: true});
+  }
 }
 
 /* ---------- log aktivitas admin ---------- */
@@ -153,7 +170,7 @@ const FIELD = {
   transport_charge:'Transport', other_charge:'Other charge', discount:'Discount',
   photo_drive_link:'Link foto', video_drive_link:'Link video', raw_file_link:'Link raw', final_file_link:'Link final',
   delivery_date:'Tanggal delivery', labels:'Label', payment_due_date:'Jatuh tempo',
-  rate:'Rate', rate_type:'Tipe rate', gear:'Gear', is_active:'Aktif',
+  rate:'Rate', rate_type:'Tipe rate', event:'Event', note:'Catatan', gear:'Gear', is_active:'Aktif',
   kind:'Jenis', amount:'Jumlah', category:'Kategori', description:'Deskripsi', occurred_on:'Tanggal', booking_id:'Project',
   hpp_estimate:'HPP'
 };
@@ -490,6 +507,7 @@ export const F = {
   lead:    {date:'all', custom:{}, sort:'newest'},
   client:  {cat:'ALL', from:null, to:null, monthLabel:null, sort:'newest'},
   kas:     {from:null, to:null, monthLabel:null, cat:'ALL', init:false},
-  activity:{q:'', action:'', entity:''}
+  activity:{q:'', action:'', entity:''},
+  freelancer:{tab:'list', from:null, to:null, monthLabel:null, role:'ALL', init:false}
 };
 window.F = F;

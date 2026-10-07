@@ -75,6 +75,47 @@ create table if not exists public.freelancers (
   gear       text[] not null default '{}',
   created_at timestamptz not null default now()
 );
+-- kolom rate/rate_type di atas tidak dipakai lagi; rate kini per event di freelancer_rates
+
+/* Daftar pilihan yang bisa diatur admin: jenis rate (Per Project, Per Jam, …)
+   dan event (Wedding, Graduation, …). */
+create table if not exists public.freelancer_options (
+  id         uuid primary key default gen_random_uuid(),
+  kind       text not null check (kind in ('RATE_TYPE','EVENT')),
+  label      text not null check (length(trim(label)) > 0),
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique (kind, label)
+);
+insert into public.freelancer_options (kind, label, sort_order) values
+  ('RATE_TYPE','Per Project',1), ('RATE_TYPE','Per Jam',2), ('RATE_TYPE','Per Hari',3),
+  ('EVENT','Umum',0), ('EVENT','Wedding',1), ('EVENT','Prewedding',2), ('EVENT','Engagement',3),
+  ('EVENT','Graduation',4), ('EVENT','Family',5), ('EVENT','Maternity',6)
+on conflict (kind, label) do nothing;
+
+/* Satu freelancer bisa punya beberapa rate, berbeda per event.
+   event & rate_type disimpan sebagai teks label supaya rate lama tetap
+   terbaca walau pilihannya dihapus. */
+create table if not exists public.freelancer_rates (
+  id            uuid primary key default gen_random_uuid(),
+  freelancer_id uuid not null references public.freelancers (id) on delete cascade,
+  event         text not null,
+  rate_type     text not null,
+  rate          bigint not null default 0 check (rate >= 0),
+  note          text,
+  created_at    timestamptz not null default now()
+);
+create index if not exists freelancer_rates_fl_idx on public.freelancer_rates (freelancer_id);
+
+-- pindahkan rate lama (satu rate per freelancer) menjadi rate event "Umum", sekali saja
+insert into public.freelancer_rates (freelancer_id, event, rate_type, rate)
+select f.id, 'Umum',
+       case f.rate_type when 'PER_HOUR' then 'Per Jam' when 'PER_DAY' then 'Per Hari' else 'Per Project' end,
+       f.rate
+  from public.freelancers f
+ where f.rate > 0
+   and not exists (select 1 from public.freelancer_rates r where r.freelancer_id = f.id);
+update public.freelancers set rate = 0 where rate > 0;
 
 -- ---------------------------------------------------------------------
 -- BOOKING — dibuat pelanggan dari landing page, dikelola di BMS
@@ -391,7 +432,7 @@ from public.leads l;
 do $$
 declare t text;
 begin
-  foreach t in array array['admins','package_costs','freelancers','payments','crew_fees','transactions','leads','clients'] loop
+  foreach t in array array['admins','package_costs','freelancers','freelancer_options','freelancer_rates','payments','crew_fees','transactions','leads','clients'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon', t);
     execute format('drop policy if exists "admin penuh" on public.%I', t);
