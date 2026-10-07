@@ -431,7 +431,7 @@ export const PAGES = [
 export const svg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>`;
 
 /* Di HP hanya 4 menu utama di bar bawah; sisanya lewat tombol "Lainnya". */
-const MOB_MAIN = ['dashboard', 'booking', 'joblist', 'calendar'];
+const MOB_MAIN = ['dashboard', 'booking', 'joblist', 'kas'];
 const MORE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>';
 function buildNav(){
   $('#nav').innerHTML = PAGES.map(p =>
@@ -460,7 +460,11 @@ function labelTables(){
     t.classList.add('mtable');
     t.querySelectorAll('tbody tr').forEach(tr => {
       if(tr.cells.length !== heads.length) return;
-      [...tr.cells].forEach((td, i) => { if(!td.hasAttribute('data-label')) td.dataset.label = heads[i]; });
+      [...tr.cells].forEach((td, i) => {
+        if(!td.hasAttribute('data-label')) td.dataset.label = heads[i];
+        // sel yang isinya hanya tombol aksi → baris aksi selebar kartu
+        if(td.querySelector('button, a.btn') && !td.querySelector('.badge, .tname, .tsub, .lb')) td.classList.add('acts');
+      });
     });
   });
 }
