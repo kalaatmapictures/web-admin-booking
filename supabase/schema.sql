@@ -356,13 +356,21 @@ create table if not exists public.leads (
   email           text,
   category        text,
   source          text,
-  status          text not null default 'NEW'
-                  check (status in ('NEW','CONTACTED','QUALIFIED','NEGOTIATION','WON','LOST')),
+  status          text not null default 'COLD'
+                  check (status in ('COLD','WARM','HOT')),      -- suhu minat calon client
   follow_up_date  date,
   estimated_value bigint not null default 0,
   notes           text,
   created_at      timestamptz not null default now()
 );
+
+-- status lama (NEW…LOST) → COLD/WARM/HOT, aman dijalankan ulang
+alter table public.leads drop constraint if exists leads_status_check;
+update public.leads set status = case status when 'QUALIFIED' then 'WARM' when 'NEGOTIATION' then 'HOT'
+  when 'WON' then 'HOT' when 'HOT' then 'HOT' when 'WARM' then 'WARM' else 'COLD' end
+ where status not in ('COLD','WARM','HOT');
+alter table public.leads alter column status set default 'COLD';
+alter table public.leads add constraint leads_status_check check (status in ('COLD','WARM','HOT'));
 
 create table if not exists public.clients (
   id                uuid primary key default gen_random_uuid(),
@@ -442,8 +450,7 @@ cross join lateral (select (b.payment_due_date is not null and b.payment_due_dat
 
 create or replace view public.v_leads_board with (security_invoker = true) as
 select l.*,
-  case when l.status in ('WON','LOST') then 'CLOSED'
-       when l.follow_up_date is null then 'NONE'
+  case when l.follow_up_date is null then 'NONE'
        when l.follow_up_date < public.today_wib() then 'OVERDUE'
        when l.follow_up_date = public.today_wib() then 'TODAY'
        else 'SAFE' end as follow_up_state

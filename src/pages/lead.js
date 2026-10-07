@@ -5,17 +5,15 @@ import { $, $$, S, F, RENDER, rp, esc, range, inRange, fmtDate, today, toast, em
 import { normPeriod, periodButtons, bindPeriod, dISO } from '../datepicker.js';
 
 const SORTS = [['newest','Lead terbaru'],['oldest','Lead terlama'],['fnear','Follow-up terdekat'],['flate','Follow-up terlambat']];
+/* suhu minat calon client */
 export const LEAD_STATUS = [
-  {id:'NEW',         label:'Baru',          cls:'b-neutral'},
-  {id:'CONTACTED',   label:'Dihubungi',     cls:'b-grey'},
-  {id:'QUALIFIED',   label:'Tertarik',      cls:'b-warn'},
-  {id:'NEGOTIATION', label:'Negosiasi',     cls:'b-warn'},
-  {id:'WON',         label:'Jadi booking',  cls:'b-ok'},
-  {id:'LOST',        label:'Tidak jadi',    cls:'b-err'}
+  {id:'COLD', label:'Cold', cls:'b-neutral', hint:'baru tanya / belum responsif'},
+  {id:'WARM', label:'Warm', cls:'b-warn',    hint:'tertarik, masih membandingkan'},
+  {id:'HOT',  label:'Hot',  cls:'b-err',     hint:'siap booking / tinggal deal'}
 ];
 const SOURCES = ['Instagram', 'WhatsApp', 'TikTok', 'Referral', 'Website', 'Facebook', 'Datang langsung'];
 const statusOf = id => LEAD_STATUS.find(s => s.id === id) || LEAD_STATUS[0];
-const statusBadge = id => `<span class="badge ${statusOf(id).cls}">${statusOf(id).label}</span>`;
+const statusBadge = id => `<span class="badge ${statusOf(id).cls}"><span class="d"></span>${statusOf(id).label}</span>`;
 const ICON_DEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
 const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 
@@ -31,12 +29,11 @@ async function reloadLeads(){
 RENDER.lead = () => {
   const f = F.lead;
   normPeriod(f);
-  f.status = f.status || 'OPEN';
+  if(!['ALL', ...LEAD_STATUS.map(s => s.id)].includes(f.status)) f.status = 'ALL';
   const r = range(f.date, f.custom);
   let rows = S.data.leads.filter(l => f.date==='all' || inRange((l.created_at||'').slice(0,10), r));
   const inPeriod = rows;
-  if(f.status === 'OPEN') rows = rows.filter(l => !['WON','LOST'].includes(l.status));
-  else if(f.status !== 'ALL') rows = rows.filter(l => l.status === f.status);
+  if(f.status !== 'ALL') rows = rows.filter(l => l.status === f.status);
   const rank = {OVERDUE:0, TODAY:1, SAFE:2, NONE:3, CLOSED:4};
   const sorters = {
     newest: (a,b)=>(b.created_at||'').localeCompare(a.created_at||''),
@@ -48,27 +45,24 @@ RENDER.lead = () => {
   const dot = s => ({OVERDUE:'<span class="badge b-err"><span class="d"></span>Terlambat</span>',
     TODAY:'<span class="badge b-warn"><span class="d"></span>Hari ini</span>',
     SAFE:'<span class="badge b-ok"><span class="d"></span>Terjadwal</span>',
-    NONE:'<span class="badge b-grey">Belum dijadwalkan</span>',
-    CLOSED:'<span class="badge b-grey">Selesai</span>'}[s]);
+    NONE:'<span class="badge b-grey">Belum dijadwalkan</span>'}[s] || '');
 
-  const open = inPeriod.filter(l => !['WON','LOST'].includes(l.status));
-  const won = inPeriod.filter(l => l.status === 'WON').length, lost = inPeriod.filter(l => l.status === 'LOST').length;
-  const due = open.filter(l => ['OVERDUE','TODAY'].includes(l.follow_up_state)).length;
+  const count = id => inPeriod.filter(l => l.status === id).length;
+  const due = inPeriod.filter(l => ['OVERDUE','TODAY'].includes(l.follow_up_state)).length;
   $('#pgSub').textContent = `${rows.length} lead · ${rows.filter(l=>l.follow_up_state==='OVERDUE').length} follow-up terlambat`;
 
   $('#page').innerHTML = `
     <div class="grid g4" style="margin-bottom:14px">
-      <div class="card kpi accent"><div class="lbl">Lead aktif</div><div class="val">${open.length}</div><div class="cap">belum jadi / batal</div></div>
-      <div class="card kpi"><div class="lbl">Perlu di-follow-up</div><div class="val" style="${due ? 'color:var(--err)' : ''}">${due}</div><div class="cap">hari ini & terlambat</div></div>
-      <div class="card kpi"><div class="lbl">Jadi booking</div><div class="val" style="color:var(--ok)">${won}</div><div class="cap">konversi ${won + lost ? Math.round(won / (won + lost) * 100) : 0}%</div></div>
-      <div class="card kpi"><div class="lbl">Estimasi nilai</div><div class="val">${rp(open.reduce((n, l) => n + (l.estimated_value || 0), 0))}</div><div class="cap">dari lead aktif</div></div>
+      <div class="card kpi accent"><div class="lbl">Hot</div><div class="val">${count('HOT')}</div><div class="cap">siap booking</div></div>
+      <div class="card kpi"><div class="lbl">Warm</div><div class="val" style="color:var(--warn-ink)">${count('WARM')}</div><div class="cap">masih membandingkan</div></div>
+      <div class="card kpi"><div class="lbl">Cold</div><div class="val" style="color:var(--primary)">${count('COLD')}</div><div class="cap">baru tanya</div></div>
+      <div class="card kpi"><div class="lbl">Perlu di-follow-up</div><div class="val" style="${due ? 'color:var(--err)' : ''}">${due}</div><div class="cap">hari ini & terlambat · ${rp(inPeriod.reduce((n, l) => n + (l.estimated_value || 0), 0))}</div></div>
     </div>
 
     <div class="bk-bar">
       ${periodButtons('ld', f)}
       <label class="selchip"><span>Status</span><select id="ldStatus" aria-label="Status">
-        <option value="OPEN" ${f.status==='OPEN'?'selected':''}>Lead aktif</option>
-        <option value="ALL" ${f.status==='ALL'?'selected':''}>Semua status</option>
+        <option value="ALL" ${f.status==='ALL'?'selected':''}>Semua</option>
         ${LEAD_STATUS.map(s => `<option value="${s.id}" ${f.status===s.id?'selected':''}>${s.label}</option>`).join('')}
       </select></label>
       <label class="selchip"><span>Urutkan</span><select id="ldSort" aria-label="Urutkan">
@@ -123,7 +117,7 @@ function leadForm(cur){
           <datalist id="lfSrcs">${SOURCES.map(s => `<option value="${s}">`).join('')}</datalist></div>
       </div>
       <div class="mlabel" style="margin-top:16px">Status</div>
-      <div class="ld-status">${LEAD_STATUS.map(s => `<button type="button" class="${(cur?.status || 'NEW') === s.id ? 'on' : ''}" data-lfst="${s.id}">${s.label}</button>`).join('')}</div>
+      <div class="ld-status">${LEAD_STATUS.map(s => `<button type="button" class="st-${s.id.toLowerCase()} ${(cur?.status || 'COLD') === s.id ? 'on' : ''}" data-lfst="${s.id}"><b>${s.label}</b><small>${s.hint}</small></button>`).join('')}</div>
       <div class="fgrid two" style="margin-top:14px">
         <div class="fld"><label>Follow-up berikutnya</label><input type="date" id="lfDue" value="${cur?.follow_up_date||''}"></div>
         <div class="fld money"><label>Estimasi nilai</label><input id="lfVal" inputmode="numeric" placeholder="Rp0"></div>
@@ -138,7 +132,7 @@ function leadForm(cur){
       <button class="btn soft" data-mclose>Batal</button><button class="btn" id="lfSave">${cur ? 'Simpan' : 'Tambah lead'}</button>
     </div>`);
 
-  let status = cur?.status || 'NEW';
+  let status = statusOf(cur?.status || 'COLD').id;
   const val = money($('#lfVal'), cur?.estimated_value || 0);
   $$('[data-lfst]').forEach(b => b.onclick = () => {
     status = b.dataset.lfst;
