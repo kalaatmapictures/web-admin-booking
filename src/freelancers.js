@@ -1,7 +1,8 @@
 /* =====================================================================
    PERAN & RATE FREELANCER — helper bersama halaman Freelancer dan
-   detail booking. Satu freelancer bisa memegang beberapa peran:
-   peran utama (freelancers.role) + peran di rate-nya (freelancer_rates.role).
+   detail booking. Satu freelancer bisa memegang beberapa peran, yaitu
+   peran di rate-nya (freelancer_rates.role); freelancers.role hanya
+   dipakai bila belum ada rate.
    Sengaja tidak memakai nilai core.js di level modul (import melingkar).
    ===================================================================== */
 import { S } from './core.js';
@@ -14,11 +15,11 @@ const roleOrder = Object.keys(ROLE_LABEL);
 export const ratesOf = id => (S.data.freelancerRates || []).filter(r => r.freelancer_id === id)
   .sort((a, b) => roleOrder.indexOf(rateRole(a)) - roleOrder.indexOf(rateRole(b))
     || (a.event === GENERAL_EVENT) - (b.event === GENERAL_EVENT) || a.event.localeCompare(b.event));
-/* rate lama tanpa peran dianggap memakai peran utama freelancer */
+/* rate lama tanpa peran dianggap memakai peran freelancer */
 export const rateRole = r => r.role || S.data.freelancers.find(f => f.id === r.freelancer_id)?.role || 'OTHER';
 export const roleName = r => ROLE_LABEL[r] || r;
 
-export const rolesOf = f => f ? uniq([f.role, ...ratesOf(f.id).map(rateRole)])
+export const rolesOf = f => f ? uniq(ratesOf(f.id).length ? ratesOf(f.id).map(rateRole) : [f.role])
   .sort((a, b) => roleOrder.indexOf(a) - roleOrder.indexOf(b)) : [];
 export const hasRole = (f, role) => rolesOf(f).includes(role);
 export const rolesText = f => rolesOf(f).map(roleName).join(' · ');
