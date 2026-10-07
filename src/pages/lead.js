@@ -1,8 +1,13 @@
 /* LEAD (brief #1B) */
-import { $, S, F, RENDER, rp, esc, range, inRange, fmtDate, chipbar, customRange, empty } from '../core.js';
+import { $, S, F, RENDER, rp, esc, range, inRange, fmtDate, empty } from '../core.js';
+import { normPeriod, periodButtons, bindPeriod } from '../datepicker.js';
+
+const SORTS = [['newest','Lead terbaru'],['oldest','Lead terlama'],['fnear','Follow-up terdekat'],['flate','Follow-up terlambat']];
 
 RENDER.lead = () => {
-  const f = F.lead, r = range(f.date, f.custom);
+  const f = F.lead;
+  normPeriod(f);
+  const r = range(f.date, f.custom);
   let rows = S.data.leads.filter(l => f.date==='all' || inRange((l.created_at||'').slice(0,10), r));
   const rank = {OVERDUE:0, TODAY:1, SAFE:2, NONE:3, CLOSED:4};
   const sorters = {
@@ -20,12 +25,11 @@ RENDER.lead = () => {
   $('#pgSub').textContent = `${rows.length} lead · ${rows.filter(l=>l.follow_up_state==='OVERDUE').length} overdue`;
 
   $('#page').innerHTML = `
-    <div class="card" style="margin-bottom:14px">
-      <div class="flabel">Filter waktu</div>
-      ${chipbar([{v:'all',l:'Semua'},{v:'today',l:'Hari ini'},{v:'last7',l:'7 hari terakhir'},{v:'last30',l:'30 hari terakhir'},{v:'month',l:'Bulan ini'},{v:'lastmonth',l:'Bulan lalu'},{v:'custom',l:'Custom'}], f.date, v=>{f.date=v;RENDER.lead();})}
-      ${f.date==='custom' ? '<div style="margin-top:10px">'+customRange(f.custom, c=>{f.custom=c;RENDER.lead();})+'</div>' : ''}
-      <div class="flabel" style="margin-top:16px">Urutkan</div>
-      ${chipbar([{v:'newest',l:'Lead terbaru'},{v:'oldest',l:'Lead terlama'},{v:'fnear',l:'Follow-up terdekat'},{v:'flate',l:'Follow-up terlambat'}], f.sort, v=>{f.sort=v;RENDER.lead();}, true)}
+    <div class="bk-bar">
+      ${periodButtons('ld', f)}
+      <label class="selchip"><span>Urutkan</span><select id="ldSort" aria-label="Urutkan">
+        ${SORTS.map(([k, l]) => `<option value="${k}" ${k === f.sort ? 'selected' : ''}>${l}</option>`).join('')}
+      </select></label>
     </div>
     ${rows.length ? `<div class="card"><div class="tablewrap"><table>
       <thead><tr><th>Lead</th><th>Kategori</th><th>Status</th><th>Follow-up</th><th class="r">Estimasi</th><th class="r">Aksi</th></tr></thead>
@@ -37,4 +41,7 @@ RENDER.lead = () => {
         <td class="r num">${rp(l.estimated_value)}</td>
         <td class="r">${l.whatsapp?`<a class="btn wa sm" href="https://wa.me/${esc(l.whatsapp)}" target="_blank" rel="noopener" style="text-decoration:none">WhatsApp</a>`:'—'}</td>
       </tr>`).join('')}</tbody></table></div></div>` : empty('Belum ada lead','Tidak ada lead pada rentang waktu ini.')}`;
+
+  bindPeriod('ld', f, RENDER.lead);
+  $('#ldSort').onchange = e => { f.sort = e.target.value; RENDER.lead(); };
 };
