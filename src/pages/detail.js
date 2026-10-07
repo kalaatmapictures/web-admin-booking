@@ -4,8 +4,9 @@
    ===================================================================== */
 import { $, $$, S, F, RENDER, rp, esc, today, fmtDate, timeRange, initials, toast, money, moneyVal,
          openDrawer, openModal, closeModal, saveBooking, addPayment, crewBadge, payBadge,
-         BOOKING_STATUSES, dpPercent, closeDrawer, deleteBooking } from '../core.js';
+         BOOKING_STATUSES, dpPercent, closeDrawer, deleteBooking, go } from '../core.js';
 import { hasRole, rateFor } from '../freelancers.js';
+import { taskForm, taskSummary } from './tasks.js';
 
 const rerender = () => RENDER[S.page]();
 /* jalankan aksi tulis; tampilkan galat tanpa membuat UI macet */
@@ -145,6 +146,7 @@ export function bookingDrawer(id){
     </div>`;
 
   const ig = [b.client_instagram, b.bride_instagram, b.groom_instagram].filter(Boolean).join(' · ');
+  const tk = taskSummary(id);
   const addons = b.add_ons || [];
 
   openDrawer(`
@@ -221,6 +223,14 @@ export function bookingDrawer(id){
       ${linkField('final_file_link','Final File Link', b.final_file_link)}
       <div class="fld" style="margin-bottom:9px"><label>Tanggal delivery</label><input type="date" data-link="delivery_date" value="${b.delivery_date||''}"></div>
       <button class="btn block" id="saveLinks">Simpan deliverable</button>
+    </div>
+
+    <div class="card" style="margin-bottom:13px">
+      <div style="display:flex;align-items:center;gap:8px"><b style="font-size:13px">Task After Event</b>
+        ${tk.list.length ? `<span class="tsub">${tk.done}/${tk.list.length} selesai</span>` : ''}
+        <button class="btn soft sm" id="tkFromDrawer" style="margin-left:auto">+ Task</button></div>
+      <div style="margin-top:8px">${tk.html}</div>
+      ${tk.list.length ? '<button class="btn ghost sm" id="tkOpenTab" style="margin-top:8px">Kelola di Joblist →</button>' : ''}
     </div>
 
     <div class="card" style="margin-bottom:13px">
@@ -307,6 +317,9 @@ export function bookingDrawer(id){
   };
 
   $('#delBooking').onclick = () => confirmDeleteBooking(id);
+  $('#tkFromDrawer').onclick = () => taskForm(null, id);
+  const tkTab = $('#tkOpenTab');
+  if(tkTab) tkTab.onclick = () => { F.joblist.tab = 'tasks'; closeDrawer(); go('joblist'); };
 
   // deliverables
   $('#saveLinks').onclick = async () => {

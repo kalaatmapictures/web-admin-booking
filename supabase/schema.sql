@@ -329,6 +329,24 @@ create trigger payments_kas after insert on public.payments
   for each row execute function public.payments_to_kas();
 
 -- ---------------------------------------------------------------------
+-- TASK AFTER EVENT — pekerjaan pasca-event per booking (edit foto, edit
+-- video, layout album, …), dikelola di tab Joblist → Task After Event
+-- ---------------------------------------------------------------------
+create table if not exists public.post_tasks (
+  id          uuid primary key default gen_random_uuid(),
+  booking_id  uuid not null references public.bookings (id) on delete cascade,
+  title       text not null check (length(trim(title)) > 0),
+  task_type   text,
+  assignee_id uuid references public.freelancers (id) on delete set null,
+  status      text not null default 'TODO' check (status in ('TODO','IN_PROGRESS','REVIEW','DONE')),
+  due_date    date,
+  notes       text,
+  done_at     timestamptz,
+  created_at  timestamptz not null default now()
+);
+create index if not exists post_tasks_booking_idx on public.post_tasks (booking_id);
+
+-- ---------------------------------------------------------------------
 -- LEAD & CLIENT
 -- ---------------------------------------------------------------------
 create table if not exists public.leads (
@@ -438,7 +456,7 @@ from public.leads l;
 do $$
 declare t text;
 begin
-  foreach t in array array['admins','package_costs','freelancers','freelancer_options','freelancer_rates','payments','crew_fees','transactions','leads','clients'] loop
+  foreach t in array array['admins','package_costs','freelancers','freelancer_options','freelancer_rates','post_tasks','payments','crew_fees','transactions','leads','clients'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon', t);
     execute format('drop policy if exists "admin penuh" on public.%I', t);

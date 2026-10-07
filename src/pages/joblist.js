@@ -7,6 +7,7 @@ import { $, $$, S, F, RENDER, rp, esc, today, inRange, fmtDate, initials, toast,
 import { STAGES, stageOf, stageIx, catGroups, catGroup, PAY_LABELS, payLabel, MANUAL_LABELS, labelChips } from '../stages.js';
 import { calLabel, dateButton, bindDateButton } from '../datepicker.js';
 import { bookingDrawer } from './detail.js';
+import { renderTasks, tasksOf } from './tasks.js';
 
 const JB = { view:'card', drag:null, sort:'nearest', cat:'ALL', from:null, to:null, monthLabel:null };
 
@@ -44,6 +45,14 @@ async function moveStage(id, target){
   RENDER.joblist();
 }
 
+/* progres task after event di kartu booking, mis. "Task 1/3" */
+const taskChip = b => {
+  const list = tasksOf(b.id);
+  if(!list.length) return '';
+  const done = list.filter(t => t.status === 'DONE').length;
+  return `<span class="tk-chip ${done === list.length ? 'ok' : ''}" title="Task after event selesai">Task ${done}/${list.length}</span>`;
+};
+
 function jbCard(b){
   const st = stageOf(b), i = stageIx(st);
   const crew = [
@@ -61,7 +70,7 @@ function jbCard(b){
       ${b.needs_attention ? '<span class="mi" style="color:var(--err)">⚠</span>' : ''}
       <span class="tot">${rp(b.total_invoice)}</span>
     </div>
-    <div class="jb-crew">${crew}</div>
+    <div class="jb-crew">${crew}${taskChip(b)}</div>
     <div class="jb-foot">
       <button data-jbmove="${b.id}" data-dir="-1" ${i<=0?'disabled':''} title="Pindah ke kiri">‹</button>
       <button data-jbmove="${b.id}" data-dir="1" ${i>=STAGES.length-1?'disabled':''} title="Pindah ke kanan">›</button>
@@ -72,6 +81,15 @@ function jbCard(b){
 }
 
 RENDER.joblist = () => {
+  const tab = F.joblist.tab;
+  const tabs = `<div class="fl-tabs">
+      <button class="${tab === 'board' ? 'on' : ''}" data-jbtab="board">Papan Booking</button>
+      <button class="${tab === 'tasks' ? 'on' : ''}" data-jbtab="tasks">Task After Event${(S.data.postTasks || []).filter(t => t.status !== 'DONE').length
+        ? ` <span class="fl-n2">${S.data.postTasks.filter(t => t.status !== 'DONE').length}</span>` : ''}</button>
+    </div>`;
+  const bindTabs = () => $$('[data-jbtab]').forEach(b => b.onclick = () => { F.joblist.tab = b.dataset.jbtab; RENDER.joblist(); });
+  if(tab === 'tasks'){ renderTasks(tabs); bindTabs(); return; }
+
   const cat = catGroup(JB.cat); JB.cat = cat.id;
   const all = S.data.bookings.filter(b =>
     stageOf(b) &&
@@ -101,7 +119,7 @@ RENDER.joblist = () => {
   const payCards = PAY_LABELS.map(p => `<div class="card kpi jb-ov">
       <div class="lbl">${p.text}</div><div class="val">${all.filter(b => payLabel(b)?.id === p.id).length}</div><div class="cap">kartu</div>
     </div>`).join('');
-  const overview = `
+  const overview = `${tabs}
     <div class="grid jb-ov-grid">${stageCards}</div>
     <div class="grid g3" style="margin-top:12px">${payCards}</div>
     <div class="sec-h"><h3>Papan</h3></div>`;
@@ -162,6 +180,7 @@ RENDER.joblist = () => {
     }).join('');
   }
 
+  bindTabs();
   $$('[data-jbview]').forEach(b => b.onclick = () => { JB.view = b.dataset.jbview; RENDER.joblist(); });
   $$('[data-jbsort]').forEach(b => b.onclick = () => { JB.sort = b.dataset.jbsort; RENDER.joblist(); });
   $$('[data-jbcat]').forEach(b => b.onclick = () => { JB.cat = b.dataset.jbcat; RENDER.joblist(); });

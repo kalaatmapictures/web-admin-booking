@@ -141,7 +141,7 @@ export async function loadAll(){
     S.data = {bookings: bookings.map(normBooking), freelancers, payments, leads, clients, transactions, crewFees:[], activity,
               packageCosts: Object.fromEntries(costs.map(c => [c.package_id, c.hpp_estimate]))};
   }
-  await loadFreelancerExtras();
+  await Promise.all([loadFreelancerExtras(), loadPostTasks()]);
   buildPackages();
   refreshBell();
 }
@@ -161,6 +161,17 @@ export async function loadFreelancerExtras(){
     Object.assign(S.data, {freelancerRates: [], freelancerOptions: [], flSchemaMissing: true});
   }
 }
+/* Task after event. Tabel ditambahkan belakangan: bila belum ada, tab
+   Task After Event menampilkan petunjuk dan halaman lain tetap jalan. */
+export async function loadPostTasks(){
+  try{
+    S.data.postTasks = await api('post_tasks?select=*&order=created_at');
+    S.data.tasksSchemaMissing = false;
+  }catch(e){
+    console.warn('[Kalaatma] tabel post_tasks belum ada:', e.message);
+    Object.assign(S.data, {postTasks: [], tasksSchemaMissing: true});
+  }
+}
 
 /* ---------- log aktivitas admin ---------- */
 const FIELD = {
@@ -172,7 +183,7 @@ const FIELD = {
   delivery_date:'Tanggal delivery', labels:'Label', payment_due_date:'Jatuh tempo',
   rate:'Rate', rate_type:'Tipe rate', event:'Event', role:'Peran', note:'Catatan', gear:'Gear', is_active:'Aktif',
   kind:'Jenis', amount:'Jumlah', category:'Kategori', description:'Deskripsi', occurred_on:'Tanggal', booking_id:'Project',
-  hpp_estimate:'HPP'
+  hpp_estimate:'HPP', title:'Judul', task_type:'Jenis', assignee_id:'Penanggung jawab', due_date:'Deadline', notes:'Catatan'
 };
 const MONEY_F = new Set(['custom_package_price','additional_charge','extra_time_charge','transport_charge','other_charge','discount','rate','amount','hpp_estimate']);
 const LINK_F = new Set(['photo_drive_link','video_drive_link','raw_file_link','final_file_link']);
@@ -180,7 +191,7 @@ function fmtField(k, v){
   if(v === null || v === undefined || v === '') return '—';
   if(MONEY_F.has(k)) return rp(v);
   if(LINK_F.has(k)) return 'terisi';
-  if(k === 'photographer_id' || k === 'videographer_id') return S.data.freelancers.find(f => f.id === v)?.name || '—';
+  if(k === 'photographer_id' || k === 'videographer_id' || k === 'assignee_id') return S.data.freelancers.find(f => f.id === v)?.name || '—';
   if(k === 'booking_id') return S.data.bookings.find(b => b.id === v)?.client_display || '—';
   if(typeof v === 'boolean') return v ? 'Ya' : 'Tidak';
   if(Array.isArray(v)) return v.length ? v.join(', ') : '—';
@@ -532,6 +543,7 @@ export const F = {
   client:  {cat:'ALL', from:null, to:null, monthLabel:null, sort:'newest'},
   kas:     {from:null, to:null, monthLabel:null, cat:'ALL', init:false},
   activity:{q:'', action:'', entity:''},
+  joblist:{tab:'board'},
   freelancer:{tab:'list', from:null, to:null, monthLabel:null, role:'ALL', init:false}
 };
 window.F = F;
