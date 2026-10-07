@@ -272,6 +272,16 @@ a{color:var(--primary)}
 .dangerzone b{font-size:13px;color:#C13A40}
 .dangerzone .btn{margin-left:auto;flex:0 0 auto}
 
+/* toolbar filter halaman Booking */
+.bk-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px}
+.selchip{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border-radius:99px;padding:0 6px 0 15px;box-shadow:var(--shadow);font-size:12px;color:var(--muted);font-weight:500}
+.selchip select{border:0;background:transparent;font-size:12.5px;font-weight:600;color:var(--ink);padding:9px 8px 9px 2px;cursor:pointer;max-width:190px}
+.selchip select:focus{outline:none}
+.selchip:focus-within{box-shadow:0 0 0 2px var(--primary)}
+.bk-req{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);cursor:pointer;margin-left:auto}
+.bk-req input{width:16px;height:16px;accent-color:var(--primary)}
+@media(max-width:760px){ .bk-req{margin-left:0} }
+
 /* ---------- tabel kas ---------- */
 .kas-t td, .kas-t th{vertical-align:middle}
 .kas-in{color:var(--ok);font-weight:600}

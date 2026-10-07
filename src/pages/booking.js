@@ -1,12 +1,22 @@
 /* BOOKING (brief #1A, #15, #16, #19) — termasuk booking baru dari landing page */
 import { $, $$, S, F, RENDER, rp, esc, today, range, inRange, fmtDate, timeRange,
-         chipbar, customRange, crewBadge, statusBadge, payBadge, empty } from '../core.js';
+         crewBadge, statusBadge, payBadge, empty } from '../core.js';
 import { bookingDrawer, confirmDeleteBooking } from './detail.js';
+import { calLabel, openCalendar } from '../datepicker.js';
+
+const SORTS = [['nearest','Tanggal terdekat'],['farthest','Tanggal terjauh'],['newest','Terbaru'],['oldest','Terlama']];
+const CREWS = [['all','Semua crew status'],['COMPLETE','Complete'],['PARTIAL','Partial'],['NOT_ASSIGNED','Not Assigned'],
+               ['incomplete','Belum lengkap'],['attention','Needs Attention']];
+const CAL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>';
+const selOpts = (list, v) => list.map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${l}</option>`).join('');
 
 const TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
 RENDER.booking = () => {
-  const f = F.booking, r = range(f.date, f.custom);
+  const f = F.booking;
+  // filter waktu hanya "Bulan ini" atau "Custom"; nilai lain (mis. dari Dashboard) = semua tanggal
+  if(!['month','custom'].includes(f.date) || (f.date === 'custom' && !f.custom.from && !f.custom.to)) f.date = 'all';
+  const r = range(f.date, f.custom);
   let rows = S.data.bookings.filter(b => f.date==='all' || inRange(b.session_date, r));
   if(f.crew === 'attention')       rows = rows.filter(b=>b.needs_attention);
   else if(f.crew === 'incomplete') rows = rows.filter(b=>b.crew_status!=='COMPLETE');
@@ -29,16 +39,17 @@ RENDER.booking = () => {
   $('#pgSub').textContent = `${rows.length} booking`;
 
   $('#page').innerHTML = `
-    <div class="card" style="margin-bottom:14px">
-      <div class="flabel">Filter waktu</div>
-      ${chipbar([{v:'all',l:'Semua'},{v:'today',l:'Hari ini'},{v:'tomorrow',l:'Besok'},{v:'week',l:'Minggu ini'},{v:'nextweek',l:'Minggu depan'},{v:'month',l:'Bulan ini'},{v:'nextmonth',l:'Bulan depan'},{v:'custom',l:'Custom'}], f.date, v=>{f.date=v;RENDER.booking();})}
-      ${f.date==='custom' ? '<div style="margin-top:10px">'+customRange(f.custom, c=>{f.custom=c;RENDER.booking();})+'</div>' : ''}
-      <div class="flabel" style="margin-top:16px">Urutkan</div>
-      ${chipbar([{v:'nearest',l:'Tanggal terdekat'},{v:'farthest',l:'Tanggal terjauh'},{v:'newest',l:'Terbaru'},{v:'oldest',l:'Terlama'}], f.sort, v=>{f.sort=v;RENDER.booking();}, true)}
-      <div class="flabel" style="margin-top:16px">Crew status</div>
-      ${chipbar([{v:'all',l:'All'},{v:'COMPLETE',l:'Complete'},{v:'PARTIAL',l:'Partial'},{v:'NOT_ASSIGNED',l:'Not Assigned'},{v:'incomplete',l:'Belum lengkap'},{v:'attention',l:'Needs Attention'}], f.crew, v=>{f.crew=v;RENDER.booking();}, true)}
-      <label style="display:flex;align-items:center;gap:9px;margin-top:16px;font-size:12.5px;color:var(--ink-2);cursor:pointer">
-        <input type="checkbox" id="reqCrew" ${f.requireCrew?'checked':''} style="width:17px;height:17px;accent-color:var(--primary)">
+    <div class="bk-bar">
+      <div class="chips">
+        <button class="chip ${f.date==='month'?'on':''}" id="bkMonth">Bulan ini</button>
+        <button class="datebtn ${f.date==='custom'?'on':''}" id="bkCustom">${CAL_ICON}
+          ${f.date==='custom' ? calLabel(f.custom.from, f.custom.to, f.custom.label) : 'Custom'}
+          ${f.date==='custom' ? '<span class="x" data-clear>✕</span>' : ''}</button>
+      </div>
+      <label class="selchip"><span>Urutkan</span><select id="bkSort" aria-label="Urutkan">${selOpts(SORTS, f.sort)}</select></label>
+      <label class="selchip"><span>Crew</span><select id="bkCrew" aria-label="Crew status">${selOpts(CREWS, f.crew)}</select></label>
+      <label class="bk-req">
+        <input type="checkbox" id="reqCrew" ${f.requireCrew?'checked':''}>
         Require Complete Crew Before Confirmation
       </label>
     </div>
@@ -64,6 +75,15 @@ RENDER.booking = () => {
       </tbody></table></div></div>` : empty('Tidak ada booking','Coba longgarkan filternya.')}`;
 
   $('#reqCrew').onchange = e => f.requireCrew = e.target.checked;
+  $('#bkMonth').onclick = () => { f.date = f.date === 'month' ? 'all' : 'month'; RENDER.booking(); };
+  $('#bkCustom').onclick = e => {
+    if(e.target.hasAttribute('data-clear')){ f.date = 'all'; f.custom = {}; return RENDER.booking(); }
+    openCalendar({from:f.custom.from, to:f.custom.to, label:f.custom.label, onApply: c => {
+      f.custom = c; f.date = (c.from || c.to) ? 'custom' : 'all'; RENDER.booking();
+    }});
+  };
+  $('#bkSort').onchange = e => { f.sort = e.target.value; RENDER.booking(); };
+  $('#bkCrew').onchange = e => { f.crew = e.target.value; RENDER.booking(); };
   $$('[data-b]').forEach(tr => tr.onclick = () => bookingDrawer(tr.dataset.b));
   $$('[data-bdel]').forEach(btn => btn.onclick = e => { e.stopPropagation(); confirmDeleteBooking(btn.dataset.bdel); });
 };
