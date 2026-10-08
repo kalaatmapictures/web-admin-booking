@@ -22,6 +22,9 @@ export function defaultContent(){
       photo:'',                // foto cover desktop (landscape, subjek di kanan)
       photoMobile:''           // opsional: foto cover HP (portrait); kosong = pakai foto desktop
     },
+    services: {
+      photos:{}                // { [serviceId]: url } — foto kartu di langkah "Pilih layanan"
+    },
     testimonials: {
       eyebrow:'Testimoni',
       title:'Dipercaya untuk momen paling berharga',
