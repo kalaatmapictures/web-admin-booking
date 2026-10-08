@@ -8,6 +8,7 @@ import { $, $$, S, RENDER, rp, esc, toast, money, moneyVal, openDrawer, closeDra
          confirmBox, commitCatalog, logAct, buildPackages } from '../core.js';
 import { defaultCatalog, isCatalog, publicCatalog } from '../shared/catalog.js';
 import { LANDING_URL } from '../data/config.js';
+import { renderContent, contentDirty } from './content.js';
 
 const MN = { tab:'svc', svc:null };
 const slug = t => String(t).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'item';
@@ -206,7 +207,7 @@ RENDER.menu = () => {
   const pub = publicCatalog(S.catalog);
   const live = Object.keys(pub.services).length;
   $('#pgSub').textContent = `${live} dari ${S.catalog.services.length} layanan tampil di landing page`;
-  const tabs = [['svc','Layanan & Paket'],['terms','Syarat & Ketentuan'],['settings','Pembayaran & Kontak']];
+  const tabs = [['svc','Layanan & Paket'],['content','Konten'],['terms','Syarat & Ketentuan'],['settings','Pembayaran & Kontak']];
   $('#page').innerHTML = `
     <div class="jb-bar">
       <div class="chips">${tabs.map(([k, l]) => `<button class="chip ${MN.tab === k ? 'on' : ''}" data-mntab="${k}">${l}</button>`).join('')}</div>
@@ -215,8 +216,12 @@ RENDER.menu = () => {
       </div>
     </div>
     <div id="mnBody"></div>`;
-  $$('[data-mntab]').forEach(b => b.onclick = () => { MN.tab = b.dataset.mntab; RENDER.menu(); });
-  ({svc:renderServices, terms:renderTerms, settings:renderSettings})[MN.tab]();
+  $$('[data-mntab]').forEach(b => b.onclick = async () => {
+    if(MN.tab === 'content' && b.dataset.mntab !== 'content' && contentDirty()
+       && !await confirmBox('Konten belum disimpan', 'Perubahan tetap tersimpan sementara selama halaman tidak di-refresh. Pindah tab?', 'Pindah tab', false)) return RENDER.menu();
+    MN.tab = b.dataset.mntab; RENDER.menu();
+  });
+  ({svc:renderServices, content:renderContent, terms:renderTerms, settings:renderSettings})[MN.tab]();
 };
 
 /* ---------- layanan & paket ---------- */

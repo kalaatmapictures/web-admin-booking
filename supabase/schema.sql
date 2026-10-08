@@ -504,6 +504,9 @@ grant select on public.app_config to anon;
 drop policy if exists "publik membaca katalog" on public.app_config;
 create policy "publik membaca katalog" on public.app_config
   for select to anon, authenticated using (key = 'catalog');
+drop policy if exists "publik membaca konten" on public.app_config;
+create policy "publik membaca konten" on public.app_config
+  for select to anon, authenticated using (key = 'content');
 drop policy if exists "admin menulis konfigurasi" on public.app_config;
 create policy "admin menulis konfigurasi" on public.app_config
   for all to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -538,3 +541,18 @@ create policy "admin menambah log" on public.admin_activity
 
 revoke all on public.v_bookings_board, public.v_leads_board from anon;
 grant select on public.v_bookings_board, public.v_leads_board to authenticated;
+
+-- konten landing: foto disimpan di Storage bucket publik 'landing' (Menu → Konten)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('landing', 'landing', true, 5242880, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+drop policy if exists "admin upload foto landing" on storage.objects;
+create policy "admin upload foto landing" on storage.objects
+  for insert to authenticated with check (bucket_id = 'landing' and public.is_admin());
+drop policy if exists "admin ubah foto landing" on storage.objects;
+create policy "admin ubah foto landing" on storage.objects
+  for update to authenticated using (bucket_id = 'landing' and public.is_admin());
+drop policy if exists "admin hapus foto landing" on storage.objects;
+create policy "admin hapus foto landing" on storage.objects
+  for delete to authenticated using (bucket_id = 'landing' and public.is_admin());

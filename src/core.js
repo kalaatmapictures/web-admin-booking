@@ -108,6 +108,15 @@ export async function api(path, {method='GET', body, prefer}={}){
   return txt ? JSON.parse(txt) : null;
 }
 
+/* Upload file ke Supabase Storage (bucket publik) → URL publik. */
+export async function storageUpload(bucket, path, blob, type){
+  const base = SUPABASE_URL.replace(/\/+$/,'');
+  const res = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, {method:'POST', body:blob, headers:{
+    apikey:SUPABASE_ANON_KEY, Authorization:'Bearer ' + await token(), 'Content-Type':type, 'x-upsert':'false'}});
+  if(!res.ok) throw new Error(res.status + ' — ' + await res.text());
+  return `${base}/storage/v1/object/public/${bucket}/${path}`;
+}
+
 /* kolom time Postgres datang sebagai "09:00:00" — tampilkan "09:00" */
 const hhmm = t => t ? String(t).slice(0,5) : t;
 const normBooking = b => ({...b, session_time:hhmm(b.session_time), session_end_time:hhmm(b.session_end_time), labels:b.labels||[]});
