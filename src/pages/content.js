@@ -1,6 +1,6 @@
 /* =====================================================================
    MENU → KONTEN — teks & foto halaman pertama form booking (cover,
-   3 testimoni, identitas & kontak). Disimpan di app_config key
+   3 testimoni, foto layanan, identitas & kontak). Disimpan di app_config key
    'content' (format: src/shared/content.js, identik dengan form booking).
    Foto di-upload ke Supabase Storage bucket 'landing' (dikecilkan dulu)
    atau memakai link gambar.
@@ -31,6 +31,8 @@ const SECTIONS = [
     list:{path:'testimonials.items', item:'Testimoni', max:3, blank:{name:'', event:'', text:'', rating:5, photo:''},
       f:[['name','Nama','text'], ['event','Acara (mis. Wedding)','text'], ['text','Isi testimoni','area'],
          ['rating','Bintang','rating'], ['photo','Foto (opsional)','photo']]}},
+  {id:'services', label:'Foto layanan', hint:'Foto di setiap kartu pada langkah "Pilih layanan Anda" (layanan diatur di tab Layanan & Paket)',
+    f:[], extra:'servicePhotos'},
   {id:'brand', label:'Identitas & kontak', hint:'Nama brand di pojok kiri atas, Instagram & WhatsApp di bagian bawah', f:[
     ['brand.name','Nama brand','text'], ['brand.tagline','Tagline','text'],
     ['footer.instagram','Instagram (tanpa @)','text'], ['footer.phone','Nomor WhatsApp (mis. 08123456789)','text']]}
@@ -80,7 +82,8 @@ async function save(){
   C.busy = false;
   RENDER.menu();
 }
-const sectionData = (c, s) => [...(s.f || []).map(([p]) => getPath(c, p)), s.list ? getPath(c, s.list.path) : null];
+const sectionData = (c, s) => [...(s.f || []).map(([p]) => getPath(c, p)), s.list ? getPath(c, s.list.path) : null,
+  s.extra === 'servicePhotos' ? c.services?.photos : null];
 
 /* ---------- komponen kolom ---------- */
 const val = p => getPath(C.draft, p);
@@ -120,6 +123,7 @@ export function renderContent(){
     return;
   }
   const s = secOf(C.sec);
+  const services = S.catalog?.services || [];
   const list = s.list ? (val(s.list.path) || []) : null;
 
   body.innerHTML = `
@@ -135,6 +139,9 @@ export function renderContent(){
           <h2 style="font-size:20px;margin:4px 0 2px">${esc(s.label)}</h2>
           <div class="tsub" style="margin-bottom:14px">${esc(s.hint)}</div>
           <div class="ct-fields">${(s.f || []).map(f => field(f)).join('')}</div>
+          ${s.extra === 'servicePhotos' ? (services.length
+            ? services.map(x => photoField(`services.photos.${x.id}`, `${x.label}${x.hidden ? ' (disembunyikan)' : ''} — landscape`)).join('')
+            : '<div class="tsub">Belum ada layanan.</div>') : ''}
         </div>
         ${list ? `<div class="sec-h"><h3>${esc(s.list.item)} (${list.length})</h3>
           <div class="right"><button class="btn soft sm" data-add ${s.list.max && list.length >= s.list.max ? 'disabled' : ''}>+ Tambah ${esc(s.list.item.toLowerCase())}</button></div></div>
