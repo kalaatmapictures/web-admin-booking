@@ -21,12 +21,12 @@ const dirty = () => JSON.stringify(C.draft) !== JSON.stringify(C.saved);
 /* ---------- definisi bagian & kolom ----------
    f: [path, label, type, opts]   type: text · area · photo · tags · rating */
 const SECTIONS = [
-  {id:'hero', label:'Cover', hint:'Halaman pertama: foto besar, judul, deskripsi, tombol booking', f:[
+  {id:'hero', label:'Cover', hint:'Halaman pertama: foto penuh satu layar, judul, deskripsi, tombol booking', f:[
     ['hero.eyebrow','Teks kecil di atas judul','text'], ['hero.title','Judul','area'], ['hero.subtitle','Deskripsi','area'],
     ['hero.cta','Teks tombol booking','text'],
     ['hero.photo','Foto cover (landscape, subjek di sisi kanan — sisi kiri tertutup teks)','photo'],
     ['hero.photoMobile','Foto cover untuk HP (portrait, opsional — kosong = pakai foto di atas)','photo']]},
-  {id:'testimonials', label:'Testimoni', hint:'3 kotak ulasan client di bawah cover', f:[
+  {id:'testimonials', label:'Testimoni', hint:'3 kotak ulasan client di bagian bawah cover (di atas foto)', f:[
     ['testimonials.eyebrow','Label kecil','text'], ['testimonials.title','Judul','text']],
     list:{path:'testimonials.items', item:'Testimoni', max:3, blank:{name:'', event:'', text:'', rating:5, photo:''},
       f:[['name','Nama','text'], ['event','Acara (mis. Wedding)','text'], ['text','Isi testimoni','area'],
