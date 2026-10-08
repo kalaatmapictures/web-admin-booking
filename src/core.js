@@ -142,7 +142,7 @@ export async function loadAll(){
     S.data = {bookings: bookings.map(normBooking), freelancers, payments, leads, clients, transactions, crewFees:[], activity,
               packageCosts: Object.fromEntries(costs.map(c => [c.package_id, c.hpp_estimate]))};
   }
-  await Promise.all([loadFreelancerExtras(), loadPostTasks()]);
+  await Promise.all([loadFreelancerExtras(), loadPostTasks(), loadDebts()]);
   buildPackages();
   refreshBell();
 }
@@ -160,6 +160,16 @@ export async function loadFreelancerExtras(){
   }catch(e){
     console.warn('[Kalaatma] tabel rate freelancer belum ada:', e.message);
     Object.assign(S.data, {freelancerRates: [], freelancerOptions: [], flSchemaMissing: true});
+  }
+}
+/* Hutang piutang (tab Keuangan). Bila tabel belum ada, tab menampilkan petunjuk. */
+export async function loadDebts(){
+  try{
+    const [debts, pays] = await Promise.all([api('debts?select=*&order=created_at.desc'), api('debt_payments?select=*&order=paid_on.desc')]);
+    Object.assign(S.data, {debts, debtPayments: pays, debtsSchemaMissing: false});
+  }catch(e){
+    console.warn('[Kalaatma] tabel hutang piutang belum ada:', e.message);
+    Object.assign(S.data, {debts: [], debtPayments: [], debtsSchemaMissing: true});
   }
 }
 /* Task after event. Tabel ditambahkan belakangan: bila belum ada, tab
@@ -184,7 +194,7 @@ const FIELD = {
   delivery_date:'Tanggal delivery', labels:'Label', payment_due_date:'Jatuh tempo',
   rate:'Rate', rate_type:'Tipe rate', event:'Event', role:'Peran', note:'Catatan', gear:'Gear', is_active:'Aktif',
   kind:'Jenis', amount:'Jumlah', category:'Kategori', description:'Deskripsi', occurred_on:'Tanggal', booking_id:'Project',
-  hpp_estimate:'HPP', name:'Nama', whatsapp:'WhatsApp', email:'Email', source:'Sumber', follow_up_date:'Follow-up', estimated_value:'Estimasi', title:'Judul', task_type:'Jenis', assignee_id:'Penanggung jawab', due_date:'Deadline', notes:'Catatan'
+  hpp_estimate:'HPP', party:'Pihak', issued_on:'Tanggal', name:'Nama', whatsapp:'WhatsApp', email:'Email', source:'Sumber', follow_up_date:'Follow-up', estimated_value:'Estimasi', title:'Judul', task_type:'Jenis', assignee_id:'Penanggung jawab', due_date:'Deadline', notes:'Catatan'
 };
 const MONEY_F = new Set(['custom_package_price','additional_charge','extra_time_charge','transport_charge','other_charge','discount','rate','amount','hpp_estimate','estimated_value']);
 const LINK_F = new Set(['photo_drive_link','video_drive_link','raw_file_link','final_file_link']);
@@ -623,7 +633,7 @@ export const F = {
   booking: {date:'all', custom:{}, sort:'nearest', crew:'all', requireCrew:false},
   lead:    {date:'all', custom:{}, sort:'newest'},
   client:  {cat:'ALL', from:null, to:null, monthLabel:null, sort:'newest'},
-  kas:     {from:null, to:null, monthLabel:null, cat:'ALL', init:false},
+  kas:     {from:null, to:null, monthLabel:null, cat:'ALL', init:false, tab:'kas'},
   activity:{q:'', action:'', entity:''},
   joblist:{tab:'board'},
   freelancer:{tab:'list', from:null, to:null, monthLabel:null, role:'ALL', init:false}
