@@ -6,7 +6,7 @@
 
    Disimpan sebagai satu dokumen JSON di tabel Supabase `app_config`
    (key = 'content'). Foto berupa URL publik (Supabase Storage bucket
-   'landing', atau link lain). Kolom foto kosong = tampil bingkai polos.
+   'landing', atau link lain). Kolom foto kosong = tampil latar polos.
    ========================================================= */
 export const CONTENT_KEY = 'content';
 export const STORAGE_BUCKET = 'landing';
@@ -16,86 +16,22 @@ export function defaultContent(){
     brand: { name:'Kalaatma', tagline:'Pictures & Stories' },
     hero: {
       eyebrow:'Wedding & Portrait Photography',
-      title:'Setiap Momen, Dibingkai dengan Cinta',
-      subtitle:'Kami mengabadikan hari bahagia Anda dengan sentuhan yang hangat, jujur, dan abadi — dari wedding hingga momen keluarga.',
-      cta:'Booking Sekarang',
-      photo:'',
-      galleryTitle:'Galeri singkat',
-      gallery:['', ''],
-      rating:'4.9/5',
-      ratingNote:'dari ratusan client bahagia',
-      tags:['#Wedding', '#Prewedding', '#Engagement', '#Graduation', '#Family']
-    },
-    highlight: {
-      title:'Karena Setiap Momen Berarti',
-      text:'Setiap tawa, pelukan, dan air mata bahagia layak diingat selamanya. Itulah yang kami jaga di setiap sesi.',
-      number:'6+',
-      numberLabel:'Tahun pengalaman'
-    },
-    about: {
-      eyebrow:'Tentang Kalaatma',
-      title:'Perjalanan Sebuah Cinta',
-      text:'Kalaatma Pictures adalah studio foto & video yang percaya bahwa foto terbaik lahir dari momen yang jujur. Kami mendampingi Anda dari persiapan hingga hari H, supaya Anda cukup menikmati setiap detiknya.',
-      photos:['', '']
-    },
-    services: {
-      eyebrow:'Layanan',
-      title:'Sentuhan Khas Kami',
-      text:'Pilih layanan yang paling sesuai dengan momen Anda, lalu lanjutkan ke paket dan jadwal.',
-      photos:{}                 // { [serviceId]: url }
-    },
-    stats: [
-      {value:'300+', label:'Wedding terabadikan'},
-      {value:'1.2K+', label:'Client bahagia'},
-      {value:'50+', label:'Venue partner'},
-      {value:'6+', label:'Tahun pengalaman'}
-    ],
-    why: {
-      eyebrow:'Kenapa Kalaatma',
-      title:'Esensi Kalaatma',
-      text:'Kami tidak sekadar memotret — kami bercerita. Pendekatan yang tenang dan personal membuat Anda nyaman, sehingga setiap foto terasa seperti Anda.',
-      photo:'',
-      sidePhoto:'',
-      sideText:'Kami tidak hanya merencanakan sesi, kami menciptakan kenangan yang tak terlupakan.'
-    },
-    portfolio: {
-      eyebrow:'Portfolio',
-      title:'Kenangan yang Abadi',
-      items:[
-        {title:'Alicia & Martin', subtitle:'Wedding · Bandung', photos:['', '', '']},
-        {title:'Dinda & Raka', subtitle:'Prewedding · Lembang', photos:['', '', '']}
-      ]
+      title:'Capture the moments you\u2019ll remember forever',
+      subtitle:'Kami percaya setiap cerita cinta layak diabadikan dengan cara yang paling indah. Dengan sentuhan seni dan ketulusan, kami hadir untuk menangkap momen terbaik di hari istimewa Anda.',
+      cta:'Mulai Booking',
+      photo:'',                // foto cover desktop (landscape, subjek di kanan)
+      photoMobile:''           // opsional: foto cover HP (portrait); kosong = pakai foto desktop
     },
     testimonials: {
       eyebrow:'Testimoni',
-      title:'Kata Mereka',
+      title:'Dipercaya untuk momen paling berharga',
       items:[
-        {name:'Nadia & Fikri', event:'Wedding', text:'Timnya ramah dan sabar sekali. Hasil fotonya melebihi ekspektasi kami!', rating:5, photo:''},
-        {name:'Keluarga Wijaya', event:'Family', text:'Anak-anak jadi nyaman difoto. Prosesnya cepat dan hasilnya hangat.', rating:5, photo:''},
+        {name:'Nadia & Fikri', event:'Wedding', text:'Timnya ramah dan sabar sekali. Hasil fotonya melebihi ekspektasi kami.', rating:5, photo:''},
+        {name:'Keluarga Wijaya', event:'Family', text:'Anak-anak jadi nyaman difoto. Prosesnya tenang dan hasilnya hangat.', rating:5, photo:''},
         {name:'Rina', event:'Graduation', text:'Booking mudah, hasil cepat jadi, dan editannya natural.', rating:5, photo:''}
       ]
     },
-    faq: {
-      eyebrow:'FAQ',
-      title:'Pertanyaan yang Sering Ditanyakan',
-      photo:'',
-      items:[
-        {q:'Bagaimana cara booking?', a:'Klik "Booking Sekarang", pilih layanan & paket, isi detail acara, lalu transfer DP untuk mengunci tanggal.'},
-        {q:'Berapa DP yang harus dibayar?', a:'DP dibayar di awal untuk mengunci jadwal. Besarnya tertera di langkah pembayaran.'},
-        {q:'Kapan hasil foto dikirim?', a:'Waktu pengerjaan menyesuaikan paket. Semua file dikirim lewat Google Drive.'},
-        {q:'Apakah bisa sesi di luar kota?', a:'Bisa. Biaya transport crew menyesuaikan lokasi dan akan dikonfirmasi oleh tim kami.'}
-      ]
-    },
-    cta: {
-      title:'Rencanakan Momen Anda bersama Kalaatma',
-      text:'Tanggal favorit cepat terisi. Amankan jadwal Anda sekarang.',
-      button:'Booking Sekarang',
-      photo:''
-    },
     footer: {
-      text:'Studio foto & video untuk wedding, prewedding, graduation, dan family.',
-      address:'Bandung, Jawa Barat',
-      email:'',
       instagram:'kalaatmapictures',
       phone:''
     }

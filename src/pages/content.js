@@ -1,7 +1,7 @@
 /* =====================================================================
-   MENU → KONTEN — teks & foto landing page (hero, tentang, layanan,
-   portfolio, testimoni, FAQ, dll.). Disimpan di app_config key
-   'content' (format: src/shared/content.js, identik dengan landing page).
+   MENU → KONTEN — teks & foto halaman pertama form booking (cover,
+   3 testimoni, identitas & kontak). Disimpan di app_config key
+   'content' (format: src/shared/content.js, identik dengan form booking).
    Foto di-upload ke Supabase Storage bucket 'landing' (dikecilkan dulu)
    atau memakai link gambar.
    ===================================================================== */
@@ -21,45 +21,19 @@ const dirty = () => JSON.stringify(C.draft) !== JSON.stringify(C.saved);
 /* ---------- definisi bagian & kolom ----------
    f: [path, label, type, opts]   type: text · area · photo · tags · rating */
 const SECTIONS = [
-  {id:'brand', label:'Identitas', hint:'Nama & tagline di header/footer', f:[
-    ['brand.name','Nama brand','text'], ['brand.tagline','Tagline','text']]},
-  {id:'hero', label:'Hero (paling atas)', hint:'Judul besar, foto utama lengkung, galeri singkat', f:[
+  {id:'hero', label:'Cover', hint:'Halaman pertama: foto besar, judul, deskripsi, tombol booking', f:[
     ['hero.eyebrow','Teks kecil di atas judul','text'], ['hero.title','Judul','area'], ['hero.subtitle','Deskripsi','area'],
-    ['hero.cta','Teks tombol booking','text'], ['hero.photo','Foto utama (bingkai lengkung, portrait)','photo'],
-    ['hero.galleryTitle','Judul galeri singkat','text'], ['hero.gallery.0','Galeri 1','photo'], ['hero.gallery.1','Galeri 2','photo'],
-    ['hero.rating','Rating (mis. 4.9/5)','text'], ['hero.ratingNote','Keterangan rating','text'],
-    ['hero.tags','Tag (pisahkan dengan koma)','tags']]},
-  {id:'highlight', label:'Highlight', hint:'Kotak di bawah hero', f:[
-    ['highlight.title','Judul','text'], ['highlight.text','Teks','area'],
-    ['highlight.number','Angka besar','text'], ['highlight.numberLabel','Keterangan angka','text']]},
-  {id:'about', label:'Tentang', hint:'Cerita singkat + 2 foto', f:[
-    ['about.eyebrow','Label kecil','text'], ['about.title','Judul','text'], ['about.text','Teks','area'],
-    ['about.photos.0','Foto 1 (portrait)','photo'], ['about.photos.1','Foto 2 (landscape)','photo']]},
-  {id:'services', label:'Layanan', hint:'Teks pembuka + foto tiap layanan (dari tab Layanan & Paket)', f:[
-    ['services.eyebrow','Label kecil','text'], ['services.title','Judul','text'], ['services.text','Teks','area']], extra:'servicePhotos'},
-  {id:'stats', label:'Angka pencapaian', hint:'Pita hijau berisi angka', list:{path:'stats', item:'Angka', blank:{value:'', label:''},
-    f:[['value','Angka (mis. 300+)','text'], ['label','Keterangan','text']]}},
-  {id:'why', label:'Kenapa Kalaatma', hint:'Kartu teks + foto oval + foto samping', f:[
-    ['why.eyebrow','Label kecil','text'], ['why.title','Judul','text'], ['why.text','Teks','area'],
-    ['why.photo','Foto oval (portrait)','photo'], ['why.sideText','Teks samping','area'], ['why.sidePhoto','Foto samping','photo']]},
-  {id:'portfolio', label:'Portfolio', hint:'Daftar cerita client, masing-masing 3 foto', f:[
-    ['portfolio.eyebrow','Label kecil','text'], ['portfolio.title','Judul','text']],
-    list:{path:'portfolio.items', item:'Cerita', blank:{title:'', subtitle:'', photos:['', '', '']},
-      f:[['title','Nama client (mis. Alicia & Martin)','text'], ['subtitle','Keterangan (mis. Wedding · Bandung)','text'],
-         ['photos.0','Foto 1','photo'], ['photos.1','Foto 2','photo'], ['photos.2','Foto 3','photo']]}},
-  {id:'testimonials', label:'Testimoni', hint:'Ulasan client', f:[
+    ['hero.cta','Teks tombol booking','text'],
+    ['hero.photo','Foto cover (landscape, subjek di sisi kanan — sisi kiri tertutup teks)','photo'],
+    ['hero.photoMobile','Foto cover untuk HP (portrait, opsional — kosong = pakai foto di atas)','photo']]},
+  {id:'testimonials', label:'Testimoni', hint:'3 kotak ulasan client di bawah cover', f:[
     ['testimonials.eyebrow','Label kecil','text'], ['testimonials.title','Judul','text']],
-    list:{path:'testimonials.items', item:'Testimoni', blank:{name:'', event:'', text:'', rating:5, photo:''},
+    list:{path:'testimonials.items', item:'Testimoni', max:3, blank:{name:'', event:'', text:'', rating:5, photo:''},
       f:[['name','Nama','text'], ['event','Acara (mis. Wedding)','text'], ['text','Isi testimoni','area'],
          ['rating','Bintang','rating'], ['photo','Foto (opsional)','photo']]}},
-  {id:'faq', label:'FAQ', hint:'Pertanyaan yang sering ditanyakan', f:[
-    ['faq.eyebrow','Label kecil','text'], ['faq.title','Judul','text'], ['faq.photo','Foto samping (portrait)','photo']],
-    list:{path:'faq.items', item:'Pertanyaan', blank:{q:'', a:''}, f:[['q','Pertanyaan','text'], ['a','Jawaban','area']]}},
-  {id:'cta', label:'Ajakan booking', hint:'Bagian dengan foto latar sebelum footer', f:[
-    ['cta.title','Judul','text'], ['cta.text','Teks','area'], ['cta.button','Teks tombol','text'], ['cta.photo','Foto latar (landscape)','photo']]},
-  {id:'footer', label:'Footer & kontak', hint:'Alamat, email, Instagram', f:[
-    ['footer.text','Deskripsi singkat','area'], ['footer.address','Alamat','text'], ['footer.phone','Telepon / WA','text'],
-    ['footer.email','Email','text'], ['footer.instagram','Instagram (tanpa @)','text']]}
+  {id:'brand', label:'Identitas & kontak', hint:'Nama brand di pojok kiri atas, Instagram & WhatsApp di bagian bawah', f:[
+    ['brand.name','Nama brand','text'], ['brand.tagline','Tagline','text'],
+    ['footer.instagram','Instagram (tanpa @)','text'], ['footer.phone','Nomor WhatsApp (mis. 08123456789)','text']]}
 ];
 const secOf = id => SECTIONS.find(s => s.id === id) || SECTIONS[0];
 const ICON = {
@@ -98,16 +72,15 @@ async function save(){
       C.version = rows[0].updated_at;
     }
     C.saved = clone(C.draft);
-    await logAct('update', 'Konten landing', changed.join(', ') || 'Konten', 'Teks/foto landing page diperbarui');
-    toast('Konten tersimpan — landing page langsung memakai versi baru');
+    await logAct('update', 'Konten landing', changed.join(', ') || 'Konten', 'Teks/foto halaman booking diperbarui');
+    toast('Konten tersimpan — halaman booking langsung memakai versi baru');
   }catch(e){
     toast('Gagal menyimpan: ' + e.message);
   }
   C.busy = false;
   RENDER.menu();
 }
-const sectionData = (c, s) => [...(s.f || []).map(([p]) => getPath(c, p)), s.list ? getPath(c, s.list.path) : null,
-  s.extra === 'servicePhotos' ? c.services.photos : null];
+const sectionData = (c, s) => [...(s.f || []).map(([p]) => getPath(c, p)), s.list ? getPath(c, s.list.path) : null];
 
 /* ---------- komponen kolom ---------- */
 const val = p => getPath(C.draft, p);
@@ -122,7 +95,7 @@ function photoField(path, label){
         <button type="button" class="btn ghost sm" data-link="${esc(path)}">Pakai link</button>
         ${u ? `<button type="button" class="btn ghost sm" data-clear="${esc(path)}" style="color:var(--err)">Hapus</button>` : ''}
       </div>
-      <div class="tsub ct-st" data-st="${esc(path)}">${u ? 'Foto terpasang' : 'Belum ada foto — tampil bingkai polos'}</div>
+      <div class="tsub ct-st" data-st="${esc(path)}">${u ? 'Foto terpasang' : 'Belum ada foto — tampil latar polos'}</div>
     </div>
   </div>`;
 }
@@ -147,7 +120,6 @@ export function renderContent(){
     return;
   }
   const s = secOf(C.sec);
-  const services = S.catalog?.services || [];
   const list = s.list ? (val(s.list.path) || []) : null;
 
   body.innerHTML = `
@@ -159,24 +131,20 @@ export function renderContent(){
         </button>`).join('')}</div>
       <div>
         <div class="card">
-          <div class="mn-eyebrow">Konten landing page</div>
+          <div class="mn-eyebrow">Konten halaman booking</div>
           <h2 style="font-size:20px;margin:4px 0 2px">${esc(s.label)}</h2>
           <div class="tsub" style="margin-bottom:14px">${esc(s.hint)}</div>
           <div class="ct-fields">${(s.f || []).map(f => field(f)).join('')}</div>
-          ${s.extra === 'servicePhotos' ? `
-            <div class="mlabel" style="margin:18px 0 8px">Foto tiap layanan</div>
-            ${services.length ? services.map(x => photoField(`services.photos.${x.id}`, `${x.label}${x.hidden ? ' (disembunyikan)' : ''}`)).join('')
-              : '<div class="tsub">Belum ada layanan.</div>'}` : ''}
         </div>
         ${list ? `<div class="sec-h"><h3>${esc(s.list.item)} (${list.length})</h3>
-          <div class="right"><button class="btn soft sm" data-add>+ Tambah ${esc(s.list.item.toLowerCase())}</button></div></div>
+          <div class="right"><button class="btn soft sm" data-add ${s.list.max && list.length >= s.list.max ? 'disabled' : ''}>+ Tambah ${esc(s.list.item.toLowerCase())}</button></div></div>
           ${list.map((_, i) => `<div class="card ct-item">
             <div class="ct-item-h"><b>${esc(s.list.item)} ${i + 1}</b>
               <button class="ibtn" data-mv="${i}:-1" ${i === 0 ? 'disabled' : ''} aria-label="Naik">${ICON.up}</button>
               <button class="ibtn" data-mv="${i}:1" ${i === list.length - 1 ? 'disabled' : ''} aria-label="Turun">${ICON.down}</button>
               <button class="ibtn del" data-rm="${i}" aria-label="Hapus">${ICON.del}</button></div>
             <div class="ct-fields">${s.list.f.map(f => field(f, `${s.list.path}.${i}`)).join('')}</div>
-          </div>`).join('') || '<div class="card"><div class="jb-empty">Belum ada. Bagian ini disembunyikan di landing page selama kosong.</div></div>'}` : ''}
+          </div>`).join('') || '<div class="card"><div class="jb-empty">Belum ada. Bagian ini disembunyikan di halaman booking selama kosong.</div></div>'}` : ''}
       </div>
     </div>`;
   paintBar();
@@ -212,7 +180,7 @@ function bind(s){
     const arr = () => val(s.list.path);
     $('[data-add]').onclick = () => { if(!val(s.list.path)) setPath(C.draft, s.list.path, []); arr().push(clone(s.list.blank)); RENDER.menu(); };
     $$('[data-rm]').forEach(b => b.onclick = async () => {
-      if(!await confirmBox(`Hapus ${s.list.item.toLowerCase()} ini?`, 'Baru benar-benar hilang dari landing page setelah Simpan konten.', 'Hapus')) return RENDER.menu();
+      if(!await confirmBox(`Hapus ${s.list.item.toLowerCase()} ini?`, 'Baru benar-benar hilang dari halaman booking setelah Simpan konten.', 'Hapus')) return RENDER.menu();
       arr().splice(Number(b.dataset.rm), 1); RENDER.menu();
     });
     $$('[data-mv]').forEach(b => b.onclick = () => {
@@ -241,7 +209,7 @@ function bind(s){
     const st = $(`[data-st="${CSS.escape(path)}"]`);
     try{
       st.textContent = 'Memperkecil foto…';
-      const blob = await shrink(file);
+      const blob = await shrink(file, path.startsWith('hero.') ? 2400 : 1800);
       st.textContent = `Mengunggah ${(blob.size / 1024).toFixed(0)} KB…`;
       const folder = path.split('.')[0];
       const url = await storageUpload(STORAGE_BUCKET, `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`, blob, 'image/jpeg');
@@ -252,7 +220,7 @@ function bind(s){
   });
 }
 
-/* foto diperkecil (sisi terpanjang 1800px, JPEG 82%) supaya landing page ringan */
+/* foto diperkecil (sisi terpanjang 1800px, JPEG 82%) supaya halaman booking ringan; foto cover 2400px */
 function shrink(file, max = 1800, q = 0.82){
   return new Promise((resolve, reject) => {
     const img = new Image(), url = URL.createObjectURL(file);
