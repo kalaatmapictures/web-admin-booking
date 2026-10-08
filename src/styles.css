@@ -67,7 +67,9 @@ a{color:var(--primary)}
 .main{padding:16px 16px 96px}
 @media(min-width:1000px){ .main{margin-left:var(--sidebar);padding:22px 26px 40px} }
 
-.topbar{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.topbar{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.topbar > div:first-child{flex:1;min-width:0}
+.topbar .right{flex:0 0 auto}
 .topbar h1{font-size:clamp(20px,4.4vw,26px)}
 .topbar .sub{color:var(--muted);font-size:12.5px;font-weight:300;display:block;margin-top:1px}
 .topbar .right{margin-left:auto;display:flex;align-items:center;gap:9px}
@@ -322,6 +324,20 @@ a{color:var(--primary)}
 .searchbox .sx{width:24px;height:24px;border-radius:99px;background:var(--bg-2);color:var(--muted);font-size:11px;flex:0 0 auto}
 .searchbox .sx:hover{background:var(--tint-2);color:var(--primary)}
 @media(max-width:700px){ .searchbox{flex:1 1 100%;max-width:none} .searchbox input{font-size:16px;padding:10px 0} }
+
+/* hutang piutang */
+.db-bar{height:6px;border-radius:99px;background:var(--tint);overflow:hidden;margin-top:5px;min-width:70px}
+.db-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--primary-2),var(--primary))}
+.db-kind{margin-bottom:0;box-shadow:var(--shadow)}
+.db-kind button{padding:7px 14px}
+.db-kindpick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.db-kindpick button{display:grid;gap:2px;padding:12px 10px;border-radius:14px;background:var(--bg);border:2px solid transparent;text-align:center;color:var(--ink-2)}
+.db-kindpick button b{font-size:14px}
+.db-kindpick button small{font-size:11px;color:var(--muted)}
+.db-kindpick [data-fk="PAYABLE"].on{border-color:var(--err);background:var(--err-bg);color:var(--err-ink)}
+.db-kindpick [data-fk="RECEIVABLE"].on{border-color:var(--ok);background:var(--ok-bg);color:var(--ok-ink)}
+.mn-check span{display:grid}
+@media(max-width:700px){ .db-kind{width:100%} .db-kind button{flex:1} }
 
 /* lead */
 .ld-status{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}

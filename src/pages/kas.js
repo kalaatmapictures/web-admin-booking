@@ -4,9 +4,17 @@ import { $, $$, S, F, RENDER, rp, esc, today, inRange, fmtDate, toast, money, mo
          openModal, closeModal, saveRow, insertRow, deleteRow, empty, searchBox, bindSearch, matchQuery } from '../core.js';
 import { catGroups, catGroup, stageOf } from '../stages.js';
 import { calLabel, dateButton, bindDateButton, MON_FULL, dISO } from '../datepicker.js';
+import { renderDebts } from './debts.js';
 
 RENDER.kas = () => {
   const f = F.kas;
+  const open = (S.data.debts || []).filter(d => d.amount > (S.data.debtPayments || []).filter(p => p.debt_id === d.id).reduce((n, p) => n + p.amount, 0)).length;
+  const tabs = `<div class="fl-tabs">
+      <button class="${f.tab === 'kas' ? 'on' : ''}" data-kastab="kas">Kas</button>
+      <button class="${f.tab === 'debt' ? 'on' : ''}" data-kastab="debt">Hutang Piutang${open ? ` <span class="fl-n2">${open}</span>` : ''}</button>
+    </div>`;
+  const bindTabs = () => $$('[data-kastab]').forEach(b => b.onclick = () => { f.tab = b.dataset.kastab; RENDER.kas(); });
+  if(f.tab === 'debt'){ renderDebts(tabs); bindTabs(); return; }
   if(!f.init){
     f.init = true;
     const d = new Date();
@@ -39,7 +47,7 @@ RENDER.kas = () => {
   if(f.cat !== 'ALL') bits.push(cat.label);
   $('#pgSub').textContent = bits.join(' · ');
 
-  $('#page').innerHTML = `
+  $('#page').innerHTML = `${tabs}
     <div class="grid g4" style="margin-bottom:14px">
       <div class="card kpi accent"><div class="lbl">Saldo periode</div><div class="val">${rp(masuk-keluar)}</div><div class="cap">pemasukan − pengeluaran</div></div>
       <div class="card kpi"><div class="lbl">Pemasukan</div><div class="val" style="color:var(--ok)">${rp(masuk)}</div><div class="cap">${rows.filter(t=>t.kind==='IN').length} transaksi</div></div>
@@ -93,6 +101,7 @@ RENDER.kas = () => {
       </tr></tfoot>
     </table></div></div>` : empty('Belum ada transaksi','Tidak ada transaksi yang cocok dengan filter ini.')}`;
 
+  bindTabs();
   bindSearch('kasQ', f, RENDER.kas);
   $('#kasCat').onchange = e => { f.cat = e.target.value; RENDER.kas(); };
   bindDateButton('kasDate', f, RENDER.kas);

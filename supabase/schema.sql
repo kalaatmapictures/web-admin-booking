@@ -347,6 +347,32 @@ create table if not exists public.post_tasks (
 create index if not exists post_tasks_booking_idx on public.post_tasks (booking_id);
 
 -- ---------------------------------------------------------------------
+-- HUTANG PIUTANG — tab Keuangan → Hutang Piutang. Bisa dicicil
+-- (debt_payments); pembayaran bisa ikut dicatat di transactions (kas).
+-- ---------------------------------------------------------------------
+create table if not exists public.debts (
+  id          uuid primary key default gen_random_uuid(),
+  kind        text not null check (kind in ('PAYABLE','RECEIVABLE')),   -- hutang / piutang
+  party       text not null check (length(trim(party)) > 0),
+  description text,
+  amount      bigint not null check (amount > 0),
+  issued_on   date not null default public.today_wib(),
+  due_date    date,
+  notes       text,
+  created_at  timestamptz not null default now()
+);
+create table if not exists public.debt_payments (
+  id             uuid primary key default gen_random_uuid(),
+  debt_id        uuid not null references public.debts (id) on delete cascade,
+  amount         bigint not null check (amount > 0),
+  paid_on        date not null default public.today_wib(),
+  method         text,
+  transaction_id uuid references public.transactions (id) on delete set null,
+  created_at     timestamptz not null default now()
+);
+create index if not exists debt_payments_debt_idx on public.debt_payments (debt_id);
+
+-- ---------------------------------------------------------------------
 -- LEAD & CLIENT
 -- ---------------------------------------------------------------------
 create table if not exists public.leads (
@@ -463,7 +489,7 @@ from public.leads l;
 do $$
 declare t text;
 begin
-  foreach t in array array['admins','package_costs','freelancers','freelancer_options','freelancer_rates','post_tasks','payments','crew_fees','transactions','leads','clients'] loop
+  foreach t in array array['admins','package_costs','freelancers','freelancer_options','freelancer_rates','post_tasks','debts','debt_payments','payments','crew_fees','transactions','leads','clients'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon', t);
     execute format('drop policy if exists "admin penuh" on public.%I', t);
