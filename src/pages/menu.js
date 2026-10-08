@@ -7,7 +7,6 @@
 import { $, $$, S, RENDER, rp, esc, toast, money, moneyVal, openDrawer, closeDrawer,
          confirmBox, commitCatalog, logAct, buildPackages } from '../core.js';
 import { defaultCatalog, isCatalog, publicCatalog } from '../shared/catalog.js';
-import { LANDING_URL } from '../data/config.js';
 import { renderContent, contentDirty } from './content.js';
 
 const MN = { tab:'svc', svc:null };
@@ -211,9 +210,6 @@ RENDER.menu = () => {
   $('#page').innerHTML = `
     <div class="jb-bar">
       <div class="chips">${tabs.map(([k, l]) => `<button class="chip ${MN.tab === k ? 'on' : ''}" data-mntab="${k}">${l}</button>`).join('')}</div>
-      <div class="chips" style="margin-left:auto">
-        <a class="btn soft sm" href="${LANDING_URL}" target="_blank" rel="noopener" style="text-decoration:none">Lihat landing page ↗</a>
-      </div>
     </div>
     <div id="mnBody"></div>`;
   $$('[data-mntab]').forEach(b => b.onclick = async () => {
