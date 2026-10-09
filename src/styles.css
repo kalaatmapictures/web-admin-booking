@@ -863,3 +863,52 @@ body,.card,.sidebar,.mobnav,.chip,.fld input,.fld select,.fld textarea{transitio
   box-shadow:8px 0 30px -18px rgba(0,0,0,.8);
 }
 :root[data-theme="dark"] .sidebar .navlink.on{background:#fff;color:#3733C4}
+
+/* =====================================================================
+   SOSMED — jadwal posting Instagram & TikTok
+   ===================================================================== */
+.so-conn{display:grid;gap:12px}
+@media(min-width:900px){ .so-conn{grid-template-columns:1fr 1fr} }
+.so-acc{display:flex;align-items:center;gap:14px}
+.so-acc-b{flex:1;min-width:0}
+.so-acc-b b{display:block;font-size:14px}
+.so-plat{width:24px;height:24px;border-radius:8px;display:inline-grid;place-items:center;color:#fff;flex:0 0 auto}
+.so-plat svg{width:14px;height:14px}
+.so-plat.lg{width:44px;height:44px;border-radius:14px}
+.so-plat.lg svg{width:22px;height:22px}
+.so-plat.instagram{background:linear-gradient(45deg,#F9A13B,#E1306C 45%,#833AB4)}
+.so-plat.tiktok{background:#111}
+.so-ev{display:flex!important;align-items:center;gap:4px}
+.so-ev.st-scheduled{background:var(--tint);color:var(--primary)}
+.so-ev.st-draft{background:var(--grey-bg);color:var(--grey-ink)}
+.so-ev.st-publishing,.so-ev.st-manual{background:var(--warn-bg);color:var(--warn-ink)}
+.so-ev.st-published{background:var(--ok-bg);color:var(--ok-ink)}
+.so-ev.st-failed{background:var(--err-bg);color:var(--err-ink)}
+.so-day{cursor:pointer;transition:background .2s}
+.so-day:hover{background:var(--tint)}
+.so-list{display:grid;gap:10px}
+.so-item{display:flex;gap:14px;align-items:center;text-align:left;width:100%;transition:transform .2s var(--ease)}
+.so-item:hover{transform:translateY(-2px)}
+.so-item-b{flex:1;min-width:0;display:grid;gap:4px}
+.so-item-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.so-item-h b{font-size:13.5px;margin-right:4px}
+.so-cap{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.so-th{width:64px;height:64px;border-radius:12px;overflow:hidden;background:var(--bg-2);flex:0 0 auto;position:relative;display:block}
+.so-th img,.so-th video{width:100%;height:100%;object-fit:cover;display:block}
+.so-th.vid i{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-style:normal;font-size:16px;background:rgba(0,0,0,.25)}
+.so-media{display:flex;gap:10px;flex-wrap:wrap}
+.so-media .so-th{width:96px;height:96px}
+.so-mi{position:relative}
+.so-mi-a{position:absolute;left:4px;right:4px;bottom:4px;display:flex;gap:3px;justify-content:flex-end}
+.so-mi-a .ibtn.sm{background:rgba(0,0,0,.55);color:#fff;width:24px;height:22px}
+.so-mi-a .ibtn.sm.del:hover{background:var(--err)}
+.so-add{width:96px;height:96px;border-radius:12px;border:2px dashed var(--line);display:grid;place-items:center;align-content:center;gap:2px;cursor:pointer;color:var(--muted);transition:all .2s}
+.so-add:hover{border-color:var(--primary);color:var(--primary)}
+.so-add span{font-size:26px;line-height:1}
+.so-add small{font-size:10px;text-align:center;padding:0 6px}
+.so-pl{display:flex;gap:12px;align-items:flex-start}
+.so-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.so-steps{text-align:left;font-size:12.5px;color:var(--ink-2);padding-left:18px;margin:0 0 14px;display:grid;gap:6px}
+.so-steps code{background:var(--tint);padding:1px 5px;border-radius:5px;font-size:11.5px}
+.drawer .fld .chips{flex-wrap:wrap}
+.drawer .fld{margin-bottom:16px}

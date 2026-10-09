@@ -556,3 +556,111 @@ create policy "admin ubah foto landing" on storage.objects
 drop policy if exists "admin hapus foto landing" on storage.objects;
 create policy "admin hapus foto landing" on storage.objects
   for delete to authenticated using (bucket_id = 'landing' and public.is_admin());
+
+-- =====================================================================
+-- SOSMED — jadwal & posting Instagram (otomatis) + TikTok (manual).
+-- Edge Function: supabase/functions/social-publish (verify_jwt = false;
+-- autentikasi sendiri: JWT admin, atau header x-cron-secret dari pg_cron).
+-- =====================================================================
+create table if not exists public.social_posts (
+  id           uuid primary key default gen_random_uuid(),
+  kind         text not null default 'photo' check (kind in ('photo','carousel','reel')),
+  platforms    text[] not null default '{instagram}',
+  caption      text not null default '',
+  media        jsonb not null default '[]'::jsonb,          -- [{url, type:'image'|'video', path, w, h}]
+  scheduled_at timestamptz,
+  status       text not null default 'draft'
+               check (status in ('draft','scheduled','publishing','manual','published','failed')),
+  ig           jsonb not null default '{}'::jsonb,          -- {state, creation_id, children, media_id, permalink, error, attempts}
+  tiktok       jsonb not null default '{}'::jsonb,          -- {state:'ready'|'posted'}
+  note         text,
+  locked_until timestamptz,                                 -- kunci proses agar tidak posting ganda
+  created_by   uuid default auth.uid() references auth.users (id) on delete set null,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+create index if not exists social_posts_due on public.social_posts (status, scheduled_at);
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at := clock_timestamp(); return new; end $$;
+drop trigger if exists social_posts_touch on public.social_posts;
+create trigger social_posts_touch before update on public.social_posts
+  for each row execute function public.touch_updated_at();
+alter table public.social_posts enable row level security;
+revoke all on public.social_posts from anon;
+drop policy if exists "admin kelola posting sosmed" on public.social_posts;
+create policy "admin kelola posting sosmed" on public.social_posts
+  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- token platform: TIDAK bisa dibaca dari browser (tanpa policy), hanya
+-- ditulis lewat RPC dan dibaca Edge Function (service role).
+-- Baris '_cron' berisi rahasia acak untuk panggilan pg_cron → Edge Function.
+create table if not exists public.social_credentials (
+  platform     text primary key,
+  account_id   text not null,
+  access_token text not null,
+  updated_at   timestamptz not null default now(),
+  updated_by   uuid default auth.uid()
+);
+alter table public.social_credentials enable row level security;
+revoke all on public.social_credentials from anon, authenticated;
+
+create or replace function public.save_social_credentials(p_platform text, p_account_id text, p_token text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'hanya admin'; end if;
+  if p_platform not in ('instagram','tiktok') then raise exception 'platform tidak dikenal'; end if;
+  insert into public.social_credentials (platform, account_id, access_token, updated_at, updated_by)
+  values (p_platform, trim(p_account_id), trim(p_token), now(), auth.uid())
+  on conflict (platform) do update set account_id = excluded.account_id,
+    access_token = excluded.access_token, updated_at = now(), updated_by = auth.uid();
+end $$;
+revoke all on function public.save_social_credentials(text, text, text) from public, anon;
+grant execute on function public.save_social_credentials(text, text, text) to authenticated;
+
+create or replace function public.social_credential_info()
+returns table (platform text, account_id text, updated_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select platform, account_id, updated_at from public.social_credentials where public.is_admin();
+$$;
+revoke all on function public.social_credential_info() from public, anon;
+grant execute on function public.social_credential_info() to authenticated;
+
+-- media posting (publik agar Instagram bisa mengambilnya)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('social', 'social', true, 52428800, array['image/jpeg','video/mp4','video/quicktime'])
+on conflict (id) do nothing;
+drop policy if exists "admin upload media sosmed" on storage.objects;
+create policy "admin upload media sosmed" on storage.objects
+  for insert to authenticated with check (bucket_id = 'social' and public.is_admin());
+drop policy if exists "admin ubah media sosmed" on storage.objects;
+create policy "admin ubah media sosmed" on storage.objects
+  for update to authenticated using (bucket_id = 'social' and public.is_admin());
+drop policy if exists "admin hapus media sosmed" on storage.objects;
+create policy "admin hapus media sosmed" on storage.objects
+  for delete to authenticated using (bucket_id = 'social' and public.is_admin());
+
+-- penjadwal: tiap 2 menit memanggil Edge Function bila ada posting jatuh tempo
+create extension if not exists pg_net with schema extensions;
+create extension if not exists pg_cron with schema pg_catalog;
+insert into public.social_credentials (platform, account_id, access_token)
+values ('_cron', 'cron', encode(extensions.gen_random_bytes(24), 'hex'))
+on conflict (platform) do nothing;
+create or replace function public.social_publish_tick()
+returns void language plpgsql security definer set search_path = public, extensions as $$
+declare secret text;
+begin
+  if not exists (select 1 from public.social_posts
+                 where (status = 'scheduled' and scheduled_at <= now()) or status = 'publishing') then
+    return;
+  end if;
+  select access_token into secret from public.social_credentials where platform = '_cron';
+  perform net.http_post(
+    url := 'https://lkdjvkbrrfsyttlxlsal.supabase.co/functions/v1/social-publish',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', secret),
+    body := '{"action":"tick"}'::jsonb,
+    timeout_milliseconds := 60000
+  );
+end $$;
+revoke all on function public.social_publish_tick() from public, anon, authenticated;
+select cron.schedule('social-publish-tick', '*/2 * * * *', 'select public.social_publish_tick()');
