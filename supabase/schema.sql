@@ -664,3 +664,12 @@ begin
 end $$;
 revoke all on function public.social_publish_tick() from public, anon, authenticated;
 select cron.schedule('social-publish-tick', '*/2 * * * *', 'select public.social_publish_tick()');
+
+-- cache analisa Instagram (diisi Edge Function social-publish {action:'insights'}, 30 menit)
+create table if not exists public.social_insights_cache (
+  key        text primary key,          -- 'ig:7' | 'ig:30' | 'ig:90'
+  data       jsonb not null,
+  fetched_at timestamptz not null default now()
+);
+alter table public.social_insights_cache enable row level security;
+revoke all on public.social_insights_cache from anon, authenticated;

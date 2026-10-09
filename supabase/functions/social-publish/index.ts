@@ -11,6 +11,7 @@
 //       {action:'status'}               cek koneksi Instagram + kuota
 //       {action:'publish_now', id}      posting sekarang
 //       {action:'tick'}                 proses semua yang sudah jatuh tempo
+//       {action:'insights', days, refresh}  analisa akun & konten (cache 30 menit)
 //
 // Token Instagram disimpan di tabel social_credentials (tidak bisa dibaca
 // dari browser); fungsi ini membacanya dengan service role.
@@ -168,6 +169,107 @@ async function processPost(post: Post, cred: Cred | null) {
   return { id: post.id, status: patch.status, ig: patch.ig ?? null };
 }
 
+/* ---------- ANALISA (Instagram Insights) ---------- */
+const DAY = 86_400_000;
+const safe = async <T>(f: () => Promise<T>): Promise<T | null> => { try { return await f(); } catch { return null; } };
+
+/* metrik akun berupa total untuk rentang waktu (maks 30 hari per panggilan) */
+async function accountTotals(cred: Cred, since: number, until: number) {
+  const metrics = ["reach", "views", "accounts_engaged", "total_interactions", "likes", "comments", "saves", "shares", "profile_links_taps"];
+  const out: Record<string, number> = {};
+  for (const m of metrics) {
+    let sum = 0, ok = false;
+    for (let a = since; a < until; a += 30 * DAY) {
+      const b = Math.min(until, a + 30 * DAY);
+      const r = await safe(() => ig(cred, `${cred.account_id}/insights`, {
+        metric: m, period: "day", metric_type: "total_value",
+        since: String(Math.floor(a / 1000)), until: String(Math.floor(b / 1000)) }, "GET"));
+      const v = r?.data?.[0]?.total_value?.value;
+      if (typeof v === "number") { sum += v; ok = true; }
+    }
+    if (ok) out[m] = sum;
+  }
+  return out;
+}
+/* deret harian (reach & pertambahan follower) */
+async function accountSeries(cred: Cred, metric: string, since: number, until: number) {
+  const pts: { date: string; value: number }[] = [];
+  for (let a = since; a < until; a += 30 * DAY) {
+    const b = Math.min(until, a + 30 * DAY);
+    const r = await safe(() => ig(cred, `${cred.account_id}/insights`, {
+      metric, period: "day", since: String(Math.floor(a / 1000)), until: String(Math.floor(b / 1000)) }, "GET"));
+    for (const v of r?.data?.[0]?.values || []) pts.push({ date: String(v.end_time).slice(0, 10), value: Number(v.value) || 0 });
+  }
+  return pts;
+}
+/* metrik per posting — jenis media berbeda mendukung metrik berbeda, jadi coba bertahap */
+async function mediaInsights(cred: Cred, id: string) {
+  const sets = ["reach,saved,shares,views,total_interactions", "reach,saved,shares,total_interactions", "reach,saved"];
+  for (const metric of sets) {
+    const r = await safe(() => ig(cred, `${id}/insights`, { metric }, "GET"));
+    if (r?.data) {
+      const o: Record<string, number> = {};
+      for (const d of r.data) o[d.name] = Number(d.values?.[0]?.value ?? d.total_value?.value) || 0;
+      return o;
+    }
+  }
+  return {};
+}
+
+async function insights(days: number, refresh: boolean) {
+  days = [7, 30, 90].includes(days) ? days : 30;
+  const key = `ig:${days}`;
+  if (!refresh) {
+    const c = await db(`social_insights_cache?key=eq.${key}&select=data,fetched_at`);
+    if (c?.[0] && Date.now() - new Date(c[0].fetched_at).getTime() < 30 * 60_000) return { ...c[0].data, cached: true, fetched_at: c[0].fetched_at };
+  }
+  const cred = await igCred();
+  if (!cred) throw new Error("Instagram belum terhubung (Sosmed → Hubungkan Instagram).");
+  const until = Date.now(), since = until - days * DAY;
+
+  const profile = await ig(cred, cred.account_id, { fields: "username,name,followers_count,follows_count,media_count,profile_picture_url" }, "GET");
+  const [totals, reachSeries, followerSeries] = await Promise.all([
+    accountTotals(cred, since, until),
+    accountSeries(cred, "reach", since, until),
+    days <= 30 ? accountSeries(cred, "follower_count", since, until) : Promise.resolve([]),
+  ]);
+
+  // posting dalam periode (maks 60 terbaru)
+  const posts: any[] = [];
+  let next: string | null = null, page = 0;
+  do {
+    const r: any = next
+      ? await (await fetch(next)).json()
+      : await ig(cred, `${cred.account_id}/media`, { fields: "id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count", limit: "30" }, "GET");
+    for (const m of r.data || []) {
+      if (new Date(m.timestamp).getTime() < since) { next = null; break; }
+      posts.push(m);
+    }
+    next = posts.length < 60 ? (r.paging?.next || null) : null;
+  } while (next && ++page < 4);
+
+  const enriched = await Promise.all(posts.map(async (m) => {
+    const ins = await mediaInsights(cred, m.id);
+    const likes = m.like_count ?? 0, comments = m.comments_count ?? 0;
+    const interactions = ins.total_interactions ?? likes + comments + (ins.saved || 0) + (ins.shares || 0);
+    const type = m.media_product_type === "REELS" ? "reel" : m.media_type === "CAROUSEL_ALBUM" ? "carousel" : m.media_type === "VIDEO" ? "video" : "photo";
+    return {
+      id: m.id, type, caption: (m.caption || "").slice(0, 300), permalink: m.permalink, timestamp: m.timestamp,
+      thumb: m.thumbnail_url || m.media_url || null,
+      likes, comments, saves: ins.saved ?? null, shares: ins.shares ?? null, reach: ins.reach ?? null, views: ins.views ?? null,
+      interactions, er: ins.reach ? interactions / ins.reach : null,
+    };
+  }));
+
+  const data = {
+    days, profile: { username: profile.username, name: profile.name, followers: profile.followers_count, follows: profile.follows_count, media: profile.media_count, picture: profile.profile_picture_url },
+    totals, reachSeries, followerSeries, posts: enriched,
+  };
+  await db("social_insights_cache", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({ key, data, fetched_at: new Date().toISOString() }) });
+  return { ...data, cached: false, fetched_at: new Date().toISOString() };
+}
+
 async function tick() {
   const nowIso = new Date().toISOString();
   const due: Post[] = await db(
@@ -209,6 +311,8 @@ Deno.serve(async (req) => {
         return json({ instagram: { connected: false, error: String((e as Error).message || e) } });
       }
     }
+
+    if (body.action === "insights") return json(await insights(Number(body.days) || 30, !!body.refresh));
 
     if (body.action === "publish_now" && body.id) {
       const rows: Post[] = await db(`social_posts?id=eq.${encodeURIComponent(body.id)}&select=*`);

@@ -10,6 +10,7 @@
    ===================================================================== */
 import { $, $$, S, RENDER, esc, iso, today, toast, api, logAct, confirmBox, storageUpload, callFn,
   openDrawer, closeDrawer, openModal, closeModal, chipbar } from '../core.js';
+import { renderInsights } from './sosmed-insights.js';
 
 const BUCKET = 'social';
 const P = { list:[], loaded:false, view:'calendar', filter:'all', month:new Date(), ig:null, igLoading:false, draft:null, busy:false };
@@ -65,7 +66,7 @@ RENDER.sosmed = () => {
   $('#page').innerHTML = `
     <div class="so-conn" id="soConn"></div>
     <div class="jb-bar" style="margin-top:16px">
-      ${chipbar([{v:'calendar', l:'Kalender'}, {v:'list', l:'Daftar'}], P.view, v => { P.view = v; RENDER.sosmed(); })}
+      ${chipbar([{v:'calendar', l:'Kalender'}, {v:'list', l:'Daftar'}, {v:'insights', l:'Analisa'}], P.view, v => { P.view = v; RENDER.sosmed(); })}
       <div class="chips" style="margin-left:auto"><button class="btn sm" id="soNew">+ Buat posting</button></div>
     </div>
     ${P.view === 'list' ? `<div style="margin:12px 0">${chipbar([
@@ -73,7 +74,7 @@ RENDER.sosmed = () => {
     ], P.filter, v => { P.filter = v; RENDER.sosmed(); }, true)}</div>` : ''}
     <div id="soBody"></div>`;
   paintConn();
-  P.view === 'calendar' ? paintCalendar() : paintList();
+  P.view === 'calendar' ? paintCalendar() : P.view === 'insights' ? renderInsights($('#soBody'), connectModal) : paintList();
   $('#soNew').onclick = () => openEditor();
 };
 
