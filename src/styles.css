@@ -959,3 +959,6 @@ body,.card,.sidebar,.mobnav,.chip,.fld input,.fld select,.fld textarea{transitio
 .vz-sort{font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;padding:0}
 .vz-sort.on{color:var(--primary)}
 .vz-two > div{display:flex;flex-direction:column} .vz-two > div > .card{flex:1;display:flex;align-items:center} .vz-two .vz-chart{flex:1}
+.so-adv{text-align:left;font-size:12.5px;color:var(--muted);margin:-4px 0 6px}
+.so-adv summary{cursor:pointer}
+.so-steps li b{color:var(--ink)}
