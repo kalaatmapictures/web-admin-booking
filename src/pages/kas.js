@@ -5,6 +5,10 @@ import { $, $$, S, F, RENDER, rp, esc, today, inRange, fmtDate, toast, money, mo
 import { catGroups, catGroup, stageOf } from '../stages.js';
 import { calLabel, dateButton, bindDateButton, MON_FULL, dISO } from '../datepicker.js';
 import { renderDebts } from './debts.js';
+import { renderSheet } from './kas-sheet.js';
+
+const VIEW_KEY = 'kalaatma-kas-view';
+const getView = () => { try{ return localStorage.getItem(VIEW_KEY) === 'sheet' ? 'sheet' : 'list'; }catch(_){ return 'list'; } };
 
 RENDER.kas = () => {
   const f = F.kas;
@@ -43,6 +47,7 @@ RENDER.kas = () => {
   const keluar = rows.filter(t=>t.kind==='OUT').reduce((n,t)=>n+t.amount,0);
 
   const periode = calLabel(f.from, f.to, f.monthLabel);
+  const view = f.view || (f.view = getView());
   const bits = [`${rows.length} transaksi`, periode];
   if(f.cat !== 'ALL') bits.push(cat.label);
   $('#pgSub').textContent = bits.join(' · ');
@@ -57,6 +62,10 @@ RENDER.kas = () => {
 
     <div class="jb-bar">
       ${searchBox('kasQ', f, 'Cari deskripsi, client, kategori, nominal…')}
+      <div class="kas-view" role="group" aria-label="Tampilan">
+        <button class="${view === 'list' ? 'on' : ''}" data-kview="list" title="Tampilan daftar">☰ Daftar</button>
+        <button class="${view === 'sheet' ? 'on' : ''}" data-kview="sheet" title="Tampilan tabel seperti Excel">▦ Tabel</button>
+      </div>
       <label class="selchip"><span>Kategori</span><select id="kasCat" aria-label="Kategori">
           ${catGroups().map(c => `<option value="${esc(c.id)}" ${f.cat===c.id?'selected':''}>${esc(c.label)}</option>`).join('')}
         </select></label>
@@ -70,7 +79,7 @@ RENDER.kas = () => {
       ? `<div class="banner" style="margin-bottom:14px">${tanpaProject} transaksi tanpa tautan booking tidak ikut ditampilkan, karena kategorinya tidak diketahui.</div>`
       : ''}
 
-    ${rows.length ? `<div class="card"><div class="tablewrap"><table class="kas-t">
+    ${view === 'sheet' ? '<div id="kasSheet"></div>' : rows.length ? `<div class="card"><div class="tablewrap"><table class="kas-t">
       <thead><tr>
         <th>Tanggal</th><th>Deskripsi</th><th>Kategori</th><th>Project</th>
         <th class="r">Pemasukan</th><th class="r">Pengeluaran</th><th class="r"></th>
@@ -102,6 +111,8 @@ RENDER.kas = () => {
     </table></div></div>` : empty('Belum ada transaksi','Tidak ada transaksi yang cocok dengan filter ini.')}`;
 
   bindTabs();
+  if(view === 'sheet') renderSheet($('#kasSheet'), rows, bookingOf, RENDER.kas, periode);
+  $$('[data-kview]').forEach(b => b.onclick = () => { f.view = b.dataset.kview; try{ localStorage.setItem(VIEW_KEY, f.view); }catch(_){} RENDER.kas(); });
   bindSearch('kasQ', f, RENDER.kas);
   $('#kasCat').onchange = e => { f.cat = e.target.value; RENDER.kas(); };
   bindDateButton('kasDate', f, RENDER.kas);
