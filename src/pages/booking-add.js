@@ -39,39 +39,53 @@ export function openAddBooking(){
 
   openDrawer(`
     <div class="dh"><div><h2>Tambah booking</h2><div class="tsub">Input manual oleh admin</div></div><button class="x" data-dclose>✕</button></div>
-    <div class="fgrid two">
-      <div class="fld"><label>Kategori / layanan</label><select id="abSvc">${svcOpt()}</select></div>
-      <div class="fld" id="abSvcOtherF" hidden><label>Nama layanan</label><input id="abSvcOther" placeholder="mis. Corporate Event"></div>
-    </div>
-    <div class="fld"><label>Paket</label><select id="abPkg"></select></div>
-    <div class="fgrid two" id="abCustomF">
-      <div class="fld"><label>Nama paket</label><input id="abPkgName" placeholder="mis. Paket Custom Wedding"></div>
-      <div class="fld money"><label>Harga paket</label><input id="abPkgPrice" inputmode="numeric" placeholder="Rp0"></div>
-    </div>
-    <div class="fld" id="abPeopleF" hidden><label>Jumlah orang</label><input id="abPeople" type="number" min="1" value="1"></div>
+    <section class="ab-sec">
+      <h4><span>1</span>Layanan & paket</h4>
+      <div class="fgrid two">
+        <div class="fld"><label>Kategori / layanan</label><select id="abSvc">${svcOpt()}</select></div>
+        <div class="fld" id="abSvcOtherF" hidden><label>Nama layanan *</label><input id="abSvcOther" placeholder="mis. Corporate Event"></div>
+      </div>
+      <div class="fld"><label>Paket</label><select id="abPkg"></select></div>
+      <div class="fgrid two" id="abCustomF">
+        <div class="fld"><label>Nama paket *</label><input id="abPkgName" placeholder="mis. Paket Custom Wedding"></div>
+        <div class="fld money"><label>Harga paket</label><input id="abPkgPrice" inputmode="numeric" placeholder="Rp0"></div>
+      </div>
+      <div class="fld" id="abPeopleF" hidden><label>Jumlah orang</label><input id="abPeople" type="number" min="1" value="1"></div>
+    </section>
 
-    <div class="sec-h" style="margin:14px 0 8px"><h3 style="font-size:14px">Client</h3>
-      <div class="right chips"><button type="button" class="chip on" data-who="single">Perorangan</button><button type="button" class="chip" data-who="couple">Pasangan</button></div></div>
-    <div id="abWho"></div>
-    <div class="fld"><label>Nomor WhatsApp</label><input id="abWa" inputmode="tel" placeholder="08xxxxxxxxxx"></div>
+    <section class="ab-sec">
+      <h4><span>2</span>Client
+        <span class="chips ab-who"><button type="button" class="chip on" data-who="single">Perorangan</button><button type="button" class="chip" data-who="couple">Pasangan</button></span></h4>
+      <div id="abWho"></div>
+      <div class="fld"><label>Nomor WhatsApp</label><input id="abWa" inputmode="tel" placeholder="08xxxxxxxxxx"></div>
+    </section>
 
-    <div class="fgrid two">
-      <div class="fld"><label>Tanggal sesi *</label><input id="abDate" type="date"></div>
-      <div class="fld"><label>Status</label><select id="abStatus">${BOOKING_STATUSES.map(s => `<option value="${s}" ${s === 'CONFIRMED' ? 'selected' : ''}>${STATUS_LABEL[s]}</option>`).join('')}</select></div>
-      <div class="fld"><label>Jam mulai</label><input id="abTime" type="time"></div>
-      <div class="fld"><label>Jam selesai</label><input id="abEnd" type="time"></div>
-    </div>
-    <div class="fld"><label>Lokasi</label><input id="abLoc" placeholder="mis. Gedung Sate, Bandung"></div>
-    <div class="fgrid two">
-      <div class="fld money"><label>Diskon</label><input id="abDisc" inputmode="numeric" placeholder="Rp0"></div>
-      <div class="fld money"><label>Transport</label><input id="abTrans" inputmode="numeric" placeholder="Rp0"></div>
-    </div>
-    <div class="fgrid two">
-      <div class="fld money"><label>Sudah dibayar (DP/lunas)</label><input id="abPaid" inputmode="numeric" placeholder="Rp0"></div>
-      <div class="fld"><label>Tanggal bayar</label><input id="abPaidAt" type="date" value="${today()}"></div>
-    </div>
-    <div class="fld"><label>Catatan</label><textarea id="abNotes" rows="3" placeholder="Kebutuhan khusus, request, dll."></textarea></div>
-    <div class="ab-sum" id="abSum"></div>
+    <section class="ab-sec">
+      <h4><span>3</span>Jadwal & lokasi</h4>
+      <div class="fgrid two">
+        <div class="fld"><label>Tanggal sesi *</label><input id="abDate" type="date"></div>
+        <div class="fld"><label>Status booking</label><select id="abStatus">${BOOKING_STATUSES.map(s => `<option value="${s}" ${s === 'CONFIRMED' ? 'selected' : ''}>${STATUS_LABEL[s]}</option>`).join('')}</select></div>
+        <div class="fld"><label>Jam mulai</label><input id="abTime" type="time"></div>
+        <div class="fld"><label>Jam selesai</label><input id="abEnd" type="time"></div>
+      </div>
+      <div class="fld"><label>Lokasi</label><input id="abLoc" placeholder="mis. Gedung Sate, Bandung"></div>
+    </section>
+
+    <section class="ab-sec">
+      <h4><span>4</span>Biaya & pembayaran</h4>
+      <div class="fgrid two">
+        <div class="fld money"><label>Diskon</label><input id="abDisc" inputmode="numeric" placeholder="Rp0"></div>
+        <div class="fld money"><label>Transport</label><input id="abTrans" inputmode="numeric" placeholder="Rp0"></div>
+        <div class="fld money"><label>Sudah dibayar (DP/lunas)</label><input id="abPaid" inputmode="numeric" placeholder="Rp0"></div>
+        <div class="fld"><label>Tanggal bayar</label><input id="abPaidAt" type="date" value="${today()}"></div>
+      </div>
+      <div class="ab-sum" id="abSum"></div>
+    </section>
+
+    <section class="ab-sec">
+      <h4><span>5</span>Catatan</h4>
+      <div class="fld"><textarea id="abNotes" rows="3" placeholder="Kebutuhan khusus, request, dll."></textarea></div>
+    </section>
     <div class="so-acts" style="margin-top:14px"><button class="btn soft" data-dclose>Batal</button><button class="btn" id="abSave">Simpan booking</button></div>`);
 
   ['abPkgPrice', 'abDisc', 'abTrans', 'abPaid'].forEach(id => money($('#' + id)));
