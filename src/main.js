@@ -11,6 +11,7 @@ import './pages/client.js';
 import './pages/freelancer.js';
 import './pages/paket.js';
 import './pages/menu.js';
+import './pages/sosmed.js';
 import './pages/kas.js';
 import './pages/calendar.js';
 import './pages/activity.js';

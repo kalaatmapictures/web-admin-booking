@@ -117,6 +117,16 @@ export async function storageUpload(bucket, path, blob, type){
   return `${base}/storage/v1/object/public/${bucket}/${path}`;
 }
 
+/* Panggil Supabase Edge Function sebagai admin yang sedang login. */
+export async function callFn(name, body){
+  const res = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/functions/v1/' + name, {method:'POST',
+    headers:{apikey:SUPABASE_ANON_KEY, Authorization:'Bearer ' + await token(), 'Content-Type':'application/json'},
+    body:JSON.stringify(body || {})});
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok) throw new Error(data.error || ('Error ' + res.status));
+  return data;
+}
+
 /* kolom time Postgres datang sebagai "09:00:00" — tampilkan "09:00" */
 const hhmm = t => t ? String(t).slice(0,5) : t;
 const normBooking = b => ({...b, session_time:hhmm(b.session_time), session_end_time:hhmm(b.session_end_time), labels:b.labels||[]});
@@ -433,7 +443,8 @@ const ICONS = {
   menu:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 8h10M7 12h10M7 16h6"/>',
   kas:'<rect x="2" y="6" width="20" height="13" rx="3"/><path d="M2 11h20"/><circle cx="17" cy="15" r="1.4"/>',
   calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 11h18"/><circle cx="8.5" cy="15.5" r="1.2"/><circle cx="12" cy="15.5" r="1.2"/>',
-  activity:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  activity:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  sosmed:'<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/>'
 };
 export const PAGES = [
   {id:'dashboard',  label:'Dashboard', title:'Dashboard'},
@@ -444,6 +455,7 @@ export const PAGES = [
   {id:'freelancer', label:'Freelancer',title:'Freelancer'},
   {id:'paket',      label:'Paket',     title:'Paket & Harga'},
   {id:'menu',       label:'Menu',      title:'Menu Landing Page'},
+  {id:'sosmed',     label:'Sosmed',    title:'Konten Sosmed'},
   {id:'kas',        label:'Keuangan',  title:'Keuangan / Kas'},
   {id:'calendar',   label:'Kalender',  title:'Kalender'},
   {id:'activity',   label:'Aktivitas', title:'Log Aktivitas'}
