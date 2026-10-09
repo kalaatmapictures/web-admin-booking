@@ -133,7 +133,7 @@ create table if not exists public.bookings (
   created_at           timestamptz not null default now(),
   updated_at           timestamptz not null default now(),
   booking_id           text not null unique,
-  source               text not null default 'website',
+  source               text not null default 'website',     -- website | admin (manual) | import (data lama)
   status               text not null default 'NEW'
                        check (status in ('NEW','CONTACTED','WAITING_DP','CONFIRMED','BOOKED','EVENT_DONE','DELIVERED','COMPLETED','CANCELLED')),
 
@@ -148,13 +148,13 @@ create table if not exists public.bookings (
   add_on_price         bigint not null default 0,
   number_of_people     integer,
   session_date         date not null,
-  session_time         time not null,
+  session_time         time,                                -- boleh kosong (data lama / booking manual)
   session_end_time     time,
-  location             text not null,
+  location             text,
   map_link             text,
   latitude             double precision,
   longitude            double precision,
-  whatsapp             text not null,
+  whatsapp             text,
   notes                text,
   estimated_total      bigint,                              -- snapshot estimasi yang dilihat pelanggan
   estimated_dp         bigint,
@@ -677,3 +677,9 @@ create table if not exists public.social_insights_cache (
 );
 alter table public.social_insights_cache enable row level security;
 revoke all on public.social_insights_cache from anon, authenticated;
+
+-- booking manual & impor data lama (kolom jam/lokasi/WA boleh kosong untuk data historis)
+alter table public.bookings alter column session_time drop not null;
+alter table public.bookings alter column location drop not null;
+alter table public.bookings alter column whatsapp drop not null;
+create index if not exists bookings_source_idx on public.bookings (source);
