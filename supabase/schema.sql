@@ -650,8 +650,12 @@ create or replace function public.social_publish_tick()
 returns void language plpgsql security definer set search_path = public, extensions as $$
 declare secret text;
 begin
+  -- panggil fungsi bila ada posting jatuh tempo, atau token Instagram Login perlu diperpanjang
   if not exists (select 1 from public.social_posts
-                 where (status = 'scheduled' and scheduled_at <= now()) or status = 'publishing') then
+                 where (status = 'scheduled' and scheduled_at <= now()) or status = 'publishing')
+     and not exists (select 1 from public.social_credentials
+                     where platform = 'instagram' and access_token not like 'EAA%'
+                       and updated_at < now() - interval '30 days') then
     return;
   end if;
   select access_token into secret from public.social_credentials where platform = '_cron';

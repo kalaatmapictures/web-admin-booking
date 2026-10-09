@@ -12,6 +12,8 @@
 //       {action:'publish_now', id}      posting sekarang
 //       {action:'tick'}                 proses semua yang sudah jatuh tempo
 //       {action:'insights', days, refresh}  analisa akun & konten (cache 30 menit)
+//       {action:'connect', token, account_id?}  simpan token; account ID dicari otomatis
+//   Token Instagram Login diperpanjang otomatis (refresh_access_token) setiap ±30 hari.
 //
 // Token Instagram disimpan di tabel social_credentials (tidak bisa dibaca
 // dari browser); fungsi ini membacanya dengan service role.
@@ -21,8 +23,11 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
-const GRAPH = (Deno.env.get("IG_GRAPH_HOST") || "https://graph.facebook.com") + "/" +
-  (Deno.env.get("IG_GRAPH_VERSION") || "v26.0");
+const VER = Deno.env.get("IG_GRAPH_VERSION") || "v26.0";
+/* Token Facebook Login (diawali "EAA") → graph.facebook.com;
+   token Instagram Login (diawali "IG") → graph.instagram.com */
+const isFbToken = (t: string) => t.startsWith("EAA");
+const graphFor = (t: string) => `${isFbToken(t) ? "https://graph.facebook.com" : "https://graph.instagram.com"}/${VER}`;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -76,6 +81,7 @@ async function igCred(): Promise<Cred | null> {
 }
 async function ig(cred: Cred, path: string, params: Record<string, string> = {}, method = "POST") {
   const q = new URLSearchParams({ ...params, access_token: cred.access_token });
+  const GRAPH = graphFor(cred.access_token);
   const url = method === "GET" ? `${GRAPH}/${path}?${q}` : `${GRAPH}/${path}`;
   const res = await fetch(url, method === "GET" ? {} : { method, body: q });
   const data = await res.json().catch(() => ({}));
@@ -167,6 +173,43 @@ async function processPost(post: Post, cred: Cred | null) {
   patch.locked_until = null;
   await patchPost(post.id, patch);
   return { id: post.id, status: patch.status, ig: patch.ig ?? null };
+}
+
+/* ---------- koneksi & perpanjangan token ---------- */
+async function saveCred(account_id: string, access_token: string) {
+  await db("social_credentials", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({ platform: "instagram", account_id, access_token, updated_at: new Date().toISOString() }) });
+}
+async function connect(token: string, accountId?: string) {
+  token = String(token || "").trim();
+  if (token.length < 20) throw new Error("Token tidak valid");
+  const tmp: Cred = { account_id: "", access_token: token };
+  let id = String(accountId || "").trim(), username = "";
+  if (!isFbToken(token)) {
+    const me = await ig(tmp, "me", { fields: "user_id,username" }, "GET");
+    id = String(me.user_id || me.id); username = me.username;
+  } else if (!id) {
+    const r = await ig(tmp, "me/accounts", { fields: "name,instagram_business_account{id,username}" }, "GET");
+    const page = (r.data || []).find((p: any) => p.instagram_business_account);
+    if (!page) throw new Error("Tidak ada akun Instagram Business yang terhubung ke Facebook Page pada token ini.");
+    id = page.instagram_business_account.id; username = page.instagram_business_account.username;
+  }
+  if (!id) throw new Error("Account ID Instagram tidak ditemukan");
+  const me = await ig({ account_id: id, access_token: token }, id, { fields: "username" }, "GET");
+  await saveCred(id, token);
+  await db("social_insights_cache?key=like.ig:*", { method: "DELETE", headers: { Prefer: "return=minimal" } });
+  return { username: me.username || username, account_id: id };
+}
+/* token Instagram Login berlaku 60 hari → perpanjang bila sudah ≥30 hari */
+async function maybeRefresh() {
+  const rows = await db("social_credentials?platform=eq.instagram&select=account_id,access_token,updated_at");
+  const c = rows?.[0];
+  if (!c || isFbToken(c.access_token)) return null;
+  if (Date.now() - new Date(c.updated_at).getTime() < 30 * 86_400_000) return null;
+  const res = await fetch(`https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(c.access_token)}`);
+  const d = await res.json().catch(() => ({}));
+  if (d.access_token) { await saveCred(c.account_id, d.access_token); return "refreshed"; }
+  return "refresh_failed";
 }
 
 /* ---------- ANALISA (Instagram Insights) ---------- */
@@ -293,7 +336,10 @@ Deno.serve(async (req) => {
       if (!jwt || !(await isAdmin(jwt))) return json({ error: "Tidak diizinkan" }, 401);
     }
 
-    if (body.action === "tick") return json({ ok: true, processed: await tick() });
+    if (body.action === "tick") {
+      const refreshed = await safe(maybeRefresh);
+      return json({ ok: true, refreshed, processed: await tick() });
+    }
     if (fromCron) return json({ error: "Aksi tidak dikenal" }, 400);
 
     if (body.action === "status") {
@@ -313,6 +359,7 @@ Deno.serve(async (req) => {
     }
 
     if (body.action === "insights") return json(await insights(Number(body.days) || 30, !!body.refresh));
+    if (body.action === "connect") return json({ ok: true, ...(await connect(body.token, body.account_id)) });
 
     if (body.action === "publish_now" && body.id) {
       const rows: Post[] = await db(`social_posts?id=eq.${encodeURIComponent(body.id)}&select=*`);

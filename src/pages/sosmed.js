@@ -5,7 +5,7 @@
      (dipicu pg_cron tiap 2 menit) lewat Instagram Graph API.
    • TikTok (tahap 1): saat jadwal tiba status jadi "manual" — admin unduh
      media + salin caption, posting di aplikasi TikTok, lalu tandai selesai.
-   • Token Instagram disimpan lewat RPC save_social_credentials dan tidak
+   • Token Instagram dikirim ke Edge Function (aksi connect), disimpan server, dan tidak
      pernah bisa dibaca lagi dari browser.
    ===================================================================== */
 import { $, $$, S, RENDER, esc, iso, today, toast, api, logAct, confirmBox, storageUpload, callFn,
@@ -373,29 +373,34 @@ async function save(mode){
 /* ---------- koneksi Instagram ---------- */
 function connectModal(){
   openModal(`<h3>Hubungkan Instagram</h3>
-    <p style="text-align:left">Posting otomatis memakai Instagram Graph API resmi. Siapkan sekali saja:</p>
+    <p style="text-align:left">Cukup sekali. Siapkan HP/laptop yang sudah login Facebook & Instagram Kalaatma.</p>
     <ol class="so-steps">
-      <li>Buka <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener">developers.facebook.com/apps</a> → <b>Create app</b> → pilih use case <b>"Manage messaging & content on Instagram"</b> / Instagram API.</li>
-      <li>Di menu Instagram API, pilih login dengan <b>Facebook Login</b> (akun IG Business yang terhubung ke Facebook Page Kalaatma).</li>
-      <li>Buka <b>Graph API Explorer</b>, pilih app tadi, beri izin <code>instagram_basic</code>, <code>instagram_content_publish</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code>, lalu <b>Generate Access Token</b>.</li>
-      <li>Tukar jadi <b>token jangka panjang (60 hari)</b> lewat Access Token Debugger → "Extend Access Token". Token Page dari <code>/me/accounts</code> bisa tidak kedaluwarsa.</li>
-      <li>Cari <b>Instagram Business Account ID</b>: di Explorer jalankan <code>me/accounts?fields=instagram_business_account</code>.</li>
+      <li>Buka <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener"><b>developers.facebook.com/apps</b></a>, login dengan Facebook, lalu klik <b>Create app</b>.</li>
+      <li>Pilih use case <b>"Manage messaging & content on Instagram"</b> → <b>Next</b> sampai selesai (portofolio bisnis boleh dilewati).</li>
+      <li>Di menu kiri buka <b>Instagram</b> → <b>API setup with Instagram business login</b>.</li>
+      <li>Di bagian <b>Generate access tokens</b>, klik <b>Add account</b> → login Instagram <b>@kalaatmapictures</b> → izinkan semua akses.</li>
+      <li>Klik <b>Generate token</b> di sebelah akun tadi → <b>salin token</b> (diawali <code>IG…</code>) → tempel di bawah.</li>
     </ol>
-    <div class="fld"><label>Instagram Business Account ID</label><input id="igAcc" placeholder="contoh: 17841400000000000" inputmode="numeric"></div>
-    <div class="fld"><label>Access token</label><textarea id="igTok" rows="3" placeholder="EAAG…"></textarea>
-      <div class="hint">Token disimpan aman di server & tidak bisa dilihat lagi dari browser.</div></div>
-    <div class="acts"><button class="btn soft" data-mclose>Batal</button><button class="btn" id="igSave">Simpan & cek</button></div>`);
+    <div class="fld"><label>Access token</label><textarea id="igTok" rows="4" placeholder="Tempel token di sini (IGAA…)"></textarea>
+      <div class="hint">Account ID dicari otomatis. Token disimpan aman di server, tidak bisa dilihat lagi dari browser, dan diperpanjang otomatis.</div></div>
+    <details class="so-adv"><summary>Pakai token Facebook (EAA…)?</summary>
+      <div class="fld" style="margin-top:8px"><label>Instagram Business Account ID (opsional)</label><input id="igAcc" placeholder="kosongkan = dicari otomatis" inputmode="numeric"></div>
+    </details>
+    <div class="acts"><button class="btn soft" data-mclose>Batal</button><button class="btn" id="igSave">Hubungkan</button></div>`);
   $('#igSave').onclick = async () => {
-    const acc = $('#igAcc').value.trim(), tok = $('#igTok').value.trim();
-    if(!/^\d{5,}$/.test(acc)) return toast('Account ID berupa angka');
-    if(tok.length < 20) return toast('Token tidak valid');
-    $('#igSave').disabled = true; $('#igSave').textContent = 'Mengecek…';
+    const tok = $('#igTok').value.replace(/\s+/g, ''), acc = ($('#igAcc')?.value || '').trim();
+    if(tok.length < 20) return toast('Tempel token Instagram dulu');
+    if(acc && !/^\d{5,}$/.test(acc)) return toast('Account ID berupa angka');
+    $('#igSave').disabled = true; $('#igSave').textContent = 'Menghubungkan…';
     try{
-      await api('rpc/save_social_credentials', {method:'POST', body:{p_platform:'instagram', p_account_id:acc, p_token:tok}});
+      const r = await callFn('social-publish', {action:'connect', token:tok, account_id:acc || undefined});
       await loadIg();
-      await logAct('update', 'Koneksi sosmed', 'Instagram', P.ig?.connected ? `Terhubung @${P.ig.username}` : 'Token disimpan');
+      await logAct('update', 'Koneksi sosmed', 'Instagram', `Terhubung @${r.username}`);
       closeModal();
-      toast(P.ig?.connected ? `Terhubung sebagai @${P.ig.username}` : 'Token tersimpan, tapi Instagram menolak: ' + (P.ig?.error || 'cek token & ID'));
-    }catch(e){ toast('Gagal: ' + e.message); $('#igSave').disabled = false; $('#igSave').textContent = 'Simpan & cek'; }
+      toast(`Terhubung sebagai @${r.username}`);
+    }catch(e){
+      $('#igSave').disabled = false; $('#igSave').textContent = 'Hubungkan';
+      toast('Gagal: ' + (/token|OAuth|session|expired/i.test(e.message) ? 'token tidak valid atau sudah kedaluwarsa — buat token baru' : e.message));
+    }
   };
 }
