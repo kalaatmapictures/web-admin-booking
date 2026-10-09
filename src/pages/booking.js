@@ -2,6 +2,7 @@
 import { $, $$, S, F, RENDER, rp, esc, today, range, inRange, fmtDate, timeRange,
          crewBadge, statusBadge, payBadge, empty, searchBox, bindSearch, bookingMatch } from '../core.js';
 import { bookingDrawer, confirmDeleteBooking } from './detail.js';
+import { openAddBooking, openImport } from './booking-add.js';
 import { normPeriod, periodButtons, bindPeriod } from '../datepicker.js';
 
 const SORTS = [['nearest','Tanggal terdekat'],['farthest','Tanggal terjauh'],['newest','Terbaru'],['oldest','Terlama']];
@@ -44,6 +45,7 @@ RENDER.booking = () => {
       ${periodButtons('bk', f)}
       <label class="selchip"><span>Urutkan</span><select id="bkSort" aria-label="Urutkan">${selOpts(SORTS, f.sort)}</select></label>
       <label class="selchip"><span>Crew</span><select id="bkCrew" aria-label="Crew status">${selOpts(CREWS, f.crew)}</select></label>
+      <div class="bk-acts"><button class="btn soft sm" id="bkImport">⇪ Impor data lama</button><button class="btn sm" id="bkAdd">+ Tambah booking</button></div>
       <label class="bk-req">
         <input type="checkbox" id="reqCrew" ${f.requireCrew?'checked':''}>
         Require Complete Crew Before Confirmation
@@ -55,7 +57,7 @@ RENDER.booking = () => {
         <th>Client</th><th>Kategori</th><th>Tanggal</th><th>Crew Status</th><th>Status</th><th class="r">Total</th><th class="r">Payment</th><th class="r"></th>
       </tr></thead><tbody>
       ${rows.map(b=>`<tr class="click" data-b="${b.id}">
-        <td><div class="tname">${esc(b.client_display)}${b.status==='NEW' && b.source==='website' ? ' <span class="badge b-neutral" style="font-size:10px;padding:2px 8px">Baru · Website</span>' : ''}</div>
+        <td><div class="tname">${esc(b.client_display)}${b.status==='NEW' && b.source==='website' ? ' <span class="badge b-neutral" style="font-size:10px;padding:2px 8px">Baru · Website</span>' : ''}${b.source==='import' ? ' <span class="badge b-grey" style="font-size:10px;padding:2px 8px">Data lama</span>' : b.source==='admin' ? ' <span class="badge b-grey" style="font-size:10px;padding:2px 8px">Manual</span>' : ''}</div>
           <div class="tsub">${esc(b.package_name)}${b.needs_attention?' · <span style="color:var(--err)">perlu perhatian</span>':''}</div></td>
         <td>${esc(b.service)}${b.sub_category ? `<div class="tsub">${esc(b.sub_category)}</div>` : ''}</td>
         <td>${fmtDate(b.session_date)}<div class="tsub">${esc(timeRange(b))}</div></td>
@@ -71,6 +73,8 @@ RENDER.booking = () => {
       </tbody></table></div></div>` : empty('Tidak ada booking', f.q ? `Tidak ada yang cocok dengan "${esc(f.q)}".` : 'Coba longgarkan filternya.')}`;
 
   $('#reqCrew').onchange = e => f.requireCrew = e.target.checked;
+  $('#bkAdd').onclick = openAddBooking;
+  $('#bkImport').onclick = openImport;
   bindPeriod('bk', f, RENDER.booking);
   bindSearch('bkQ', f, RENDER.booking);
   $('#bkSort').onchange = e => { f.sort = e.target.value; RENDER.booking(); };
