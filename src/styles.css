@@ -836,12 +836,13 @@ body,.card,.sidebar,.mobnav,.chip,.fld input,.fld select,.fld textarea{transitio
    ===================================================================== */
 .sidebar{
   --sb-ink:#fff; --sb-muted:rgba(255,255,255,.72); --sb-hover:rgba(255,255,255,.12); --sb-box:rgba(255,255,255,.1);
-  background:linear-gradient(175deg,#5A55F0 0%,#4A46E0 38%,#3430BE 100%);color:var(--sb-ink);
+  background:
+    radial-gradient(circle at 110% -5%,rgba(255,255,255,.22),transparent 45%),
+    radial-gradient(circle at -20% 105%,rgba(255,255,255,.12),transparent 40%),
+    linear-gradient(175deg,#5A55F0 0%,#4A46E0 38%,#3430BE 100%);
+  color:var(--sb-ink);
   box-shadow:8px 0 30px -18px rgba(55,51,196,.55);
 }
-.sidebar::before{content:'';position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(circle at 110% -5%,rgba(255,255,255,.22),transparent 45%),radial-gradient(circle at -20% 105%,rgba(255,255,255,.12),transparent 40%)}
-.sidebar > *{position:relative}
 .sidebar .brandbar .mk{background:#fff;color:var(--primary);box-shadow:0 8px 18px -8px rgba(0,0,0,.35)}
 .sidebar .brandbar b{color:#fff}
 .sidebar .brandbar span{color:var(--sb-muted)}
@@ -859,7 +860,10 @@ body,.card,.sidebar,.mobnav,.chip,.fld input,.fld select,.fld textarea{transitio
 .sidebar .whobox b{color:#fff}
 .sidebar .whobox small{color:var(--sb-muted)}
 :root[data-theme="dark"] .sidebar{
-  background:linear-gradient(175deg,#3B37B8 0%,#2E2A9A 45%,#1E1B6B 100%);
+  background:
+    radial-gradient(circle at 110% -5%,rgba(255,255,255,.14),transparent 45%),
+    radial-gradient(circle at -20% 105%,rgba(255,255,255,.08),transparent 40%),
+    linear-gradient(175deg,#3B37B8 0%,#2E2A9A 45%,#1E1B6B 100%);
   box-shadow:8px 0 30px -18px rgba(0,0,0,.8);
 }
 :root[data-theme="dark"] .sidebar .navlink.on{background:#fff;color:#3733C4}
