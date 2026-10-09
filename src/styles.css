@@ -985,3 +985,12 @@ body,.card,.sidebar,.mobnav,.chip,.fld input,.fld select,.fld textarea{transitio
 .im-prev tr.im-dup td{color:var(--muted)}
 .im-opt{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--ink-2);margin-top:12px;cursor:pointer}
 .im-opt input{margin-top:3px;accent-color:var(--primary)}
+/* filter booking + tombol aksi dalam satu baris; centang "Require…" di baris bawahnya */
+@media(min-width:761px){
+  .bk-bar{flex-wrap:wrap}
+  .bk-bar .searchbox{flex:1 1 150px;max-width:300px}
+  .bk-bar .selchip select{max-width:150px;text-overflow:ellipsis}
+  .bk-bar .bk-acts{flex:0 0 auto;margin-left:auto}
+  .bk-bar .bk-req{flex:1 0 100%;justify-content:flex-end;margin:0}
+}
+@media(min-width:761px) and (max-width:1399px){ .bk-bar .selchip .lbl{display:none} .bk-bar .selchip{padding-left:8px} }

@@ -6,7 +6,7 @@ import { openAddBooking, openImport } from './booking-add.js';
 import { normPeriod, periodButtons, bindPeriod } from '../datepicker.js';
 
 const SORTS = [['nearest','Tanggal terdekat'],['farthest','Tanggal terjauh'],['newest','Terbaru'],['oldest','Terlama']];
-const CREWS = [['all','Semua crew status'],['COMPLETE','Complete'],['PARTIAL','Partial'],['NOT_ASSIGNED','Not Assigned'],
+const CREWS = [['all','Semua crew'],['COMPLETE','Complete'],['PARTIAL','Partial'],['NOT_ASSIGNED','Not Assigned'],
                ['incomplete','Belum lengkap'],['attention','Needs Attention']];
 const selOpts = (list, v) => list.map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${l}</option>`).join('');
 
@@ -43,9 +43,9 @@ RENDER.booking = () => {
     <div class="bk-bar">
       ${searchBox('bkQ', f, 'Cari nama, ID, paket, lokasi, WA…')}
       ${periodButtons('bk', f)}
-      <label class="selchip"><span>Urutkan</span><select id="bkSort" aria-label="Urutkan">${selOpts(SORTS, f.sort)}</select></label>
-      <label class="selchip"><span>Crew</span><select id="bkCrew" aria-label="Crew status">${selOpts(CREWS, f.crew)}</select></label>
-      <div class="bk-acts"><button class="btn soft sm" id="bkImport">⇪ Impor data lama</button><button class="btn sm" id="bkAdd">+ Tambah booking</button></div>
+      <label class="selchip" title="Urutkan"><span class="lbl">Urutkan</span><select id="bkSort" aria-label="Urutkan">${selOpts(SORTS, f.sort)}</select></label>
+      <label class="selchip" title="Crew status"><span class="lbl">Crew</span><select id="bkCrew" aria-label="Crew status">${selOpts(CREWS, f.crew)}</select></label>
+      <div class="bk-acts"><button class="btn soft sm" id="bkImport" title="Impor data booking lama dari Excel/CSV">⇪ Impor</button><button class="btn sm" id="bkAdd">+ Tambah booking</button></div>
       <label class="bk-req">
         <input type="checkbox" id="reqCrew" ${f.requireCrew?'checked':''}>
         Require Complete Crew Before Confirmation
