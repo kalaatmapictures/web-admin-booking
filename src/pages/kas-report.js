@@ -133,8 +133,8 @@ export function renderReport(host, rerender){
     <div class="card"><div class="rp-legend"><span><i class="s1"></i>Pemasukan</span><span><i class="s2"></i>Pengeluaran</span></div><div class="rp-chart" id="rpMonth"></div></div>
 
     <div class="sec-h"><h3>Rekap per project</h3><span class="tsub">${projects.length} project${rugi ? ` · <span style="color:var(--err)">${rugi} rugi</span>` : ''}</span>
-      <div class="right">
-        <label class="searchbox" style="max-width:220px"><input id="rpQ" placeholder="Cari project…" value="${esc(R.projQ)}"></label>
+      <div class="right rp-ptools">
+        <label class="searchbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="rpQ" type="search" placeholder="Cari project…" value="${esc(R.projQ)}"></label>
         <label class="selchip"><span>Urutkan</span><select id="rpSort">${[['laba', 'Laba terbesar'], ['in', 'Pendapatan'], ['margin', 'Margin'], ['tgl', 'Terbaru']].map(([k, l]) => `<option value="${k}" ${R.projSort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       </div></div>
     <div class="card"><div class="tablewrap"><table>

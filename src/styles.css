@@ -1066,3 +1066,11 @@ body,.card,.sidebar,.mobnav,.chip,.fld input,.fld select,.fld textarea{transitio
 .rp-legend .s1,.rp-bar.s1{background:var(--s1);fill:var(--s1)}
 .rp-legend .s2,.rp-bar.s2{background:var(--s2);fill:var(--s2)}
 .rp-legend .s3,.rp-bar.s3{background:var(--s3);fill:var(--s3)}
+
+/* Laporan → Rekap per project: cari & urutkan sebaris, tinggi sama */
+.sec-h .rp-ptools{flex-wrap:nowrap}
+.rp-ptools .searchbox,.rp-ptools .selchip{height:40px;box-sizing:border-box}
+.rp-ptools .searchbox{flex:0 1 240px;width:240px}
+.rp-ptools .selchip{border:2px solid transparent;flex:0 0 auto}
+.rp-ptools .selchip select{padding-top:0;padding-bottom:0;height:100%}
+@media(max-width:640px){ .sec-h .rp-ptools{width:100%;margin-left:0} .rp-ptools .searchbox{flex:1 1 0;width:auto;max-width:none} .rp-ptools .selchip select{max-width:120px} }
