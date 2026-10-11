@@ -683,3 +683,9 @@ alter table public.bookings alter column session_time drop not null;
 alter table public.bookings alter column location drop not null;
 alter table public.bookings alter column whatsapp drop not null;
 create index if not exists bookings_source_idx on public.bookings (source);
+
+-- laporan keuangan: transaksi tanpa booking bisa diberi project & jenis layanan
+alter table public.transactions add column if not exists project text;        -- nama project bila tidak ditautkan ke booking
+alter table public.transactions add column if not exists service text;        -- jenis layanan / 'Operasional Umum'
+alter table public.transactions add column if not exists import_batch text;   -- penanda data hasil impor
+create index if not exists transactions_import_idx on public.transactions (import_batch);

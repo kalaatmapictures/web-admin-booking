@@ -6,6 +6,7 @@ import { catGroups, catGroup, stageOf } from '../stages.js';
 import { calLabel, dateButton, bindDateButton, MON_FULL, dISO } from '../datepicker.js';
 import { renderDebts } from './debts.js';
 import { renderSheet } from './kas-sheet.js';
+import { renderReport, JENIS_LIST, KATEGORI_KELUAR, UMUM } from './kas-report.js';
 
 const VIEW_KEY = 'kalaatma-kas-view';
 const getView = () => { try{ return localStorage.getItem(VIEW_KEY) === 'sheet' ? 'sheet' : 'list'; }catch(_){ return 'list'; } };
@@ -15,10 +16,16 @@ RENDER.kas = () => {
   const open = (S.data.debts || []).filter(d => d.amount > (S.data.debtPayments || []).filter(p => p.debt_id === d.id).reduce((n, p) => n + p.amount, 0)).length;
   const tabs = `<div class="fl-tabs">
       <button class="${f.tab === 'kas' ? 'on' : ''}" data-kastab="kas">Kas</button>
+      <button class="${f.tab === 'report' ? 'on' : ''}" data-kastab="report">Laporan</button>
       <button class="${f.tab === 'debt' ? 'on' : ''}" data-kastab="debt">Hutang Piutang${open ? ` <span class="fl-n2">${open}</span>` : ''}</button>
     </div>`;
   const bindTabs = () => $$('[data-kastab]').forEach(b => b.onclick = () => { f.tab = b.dataset.kastab; RENDER.kas(); });
   if(f.tab === 'debt'){ renderDebts(tabs); bindTabs(); return; }
+  if(f.tab === 'report'){
+    $('#pgSub').textContent = 'Laporan keuangan bisnis';
+    $('#page').innerHTML = tabs + '<div id="kasReport"></div>';
+    bindTabs(); renderReport($('#kasReport'), RENDER.kas); return;
+  }
   if(!f.init){
     f.init = true;
     const d = new Date();
@@ -137,7 +144,8 @@ function txForm(existing){
       <div class="fld money"><label>Jumlah</label><input id="txAmt" inputmode="numeric" placeholder="Rp0"></div>
     </div>
     <div class="fld" style="margin-top:11px"><label>Kategori</label>
-      <input id="txCat" placeholder="DP Booking / Fee Crew / Operasional" value="${esc(existing?.category||'')}"></div>
+      <input id="txCat" list="txCatList" placeholder="mis. Fee Crew, Editing, Iklan & Marketing" value="${esc(existing?.category||'')}">
+      <datalist id="txCatList">${[...new Set(['Pemasukan', ...KATEGORI_KELUAR, ...S.data.transactions.map(t => t.category).filter(Boolean)])].map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
     <div class="fld" style="margin-top:11px"><label>Deskripsi</label>
       <input id="txDesc" placeholder="Keterangan singkat" value="${esc(existing?.description||'')}"></div>
     <div class="fgrid two" style="margin-top:11px">
@@ -146,7 +154,14 @@ function txForm(existing){
         <select id="txBooking"><option value="">— Tanpa project —</option>
         ${linkable.map(b=>`<option value="${b.id}">${esc(b.client_display)} · ${esc(b.service)}</option>`).join('')}</select></div>
     </div>
-    <div class="tsub" style="margin-top:8px">Transaksi yang ditautkan ke project ikut terbaca saat memfilter kategori.</div>
+    <div class="fgrid two" style="margin-top:11px" id="txFree">
+      <div class="fld"><label>Nama project (tanpa booking)</label>
+        <input id="txProj" list="txProjList" placeholder="kosong = operasional umum" value="${esc(existing?.project||'')}">
+        <datalist id="txProjList">${[...new Set(S.data.transactions.map(t => t.project).filter(p => p && p !== UMUM))].map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
+      <div class="fld"><label>Jenis layanan</label>
+        <select id="txSvc"><option value="">— otomatis —</option>${JENIS_LIST.map(j => `<option ${existing?.service === j ? 'selected' : ''}>${j}</option>`).join('')}</select></div>
+    </div>
+    <div class="tsub" style="margin-top:8px">Project & jenis dipakai di tab Laporan. Transaksi yang ditautkan ke booking otomatis memakai nama client & layanan booking.</div>
     <div class="acts">
       <button class="btn soft" data-mclose>Batal</button>
       <button class="btn" id="txSave">${ed ? 'Simpan perubahan' : 'Simpan'}</button>
@@ -155,6 +170,8 @@ function txForm(existing){
   const amt = money($('#txAmt'), existing?.amount || 0);
   $('#txKind').value = existing?.kind || 'IN';
   if(existing?.booking_id) $('#txBooking').value = existing.booking_id;
+  const syncFree = () => { $('#txFree').hidden = !!$('#txBooking').value; };
+  $('#txBooking').addEventListener('change', syncFree); syncFree();
 
   $('#txSave').onclick = async () => {
     if(moneyVal(amt) <= 0) return toast('Jumlah belum diisi');
@@ -163,7 +180,9 @@ function txForm(existing){
       category: $('#txCat').value.trim() || null,
       description: $('#txDesc').value.trim() || null,
       occurred_on: $('#txDate').value,
-      booking_id: $('#txBooking').value || null
+      booking_id: $('#txBooking').value || null,
+      project: $('#txBooking').value ? null : ($('#txProj').value.trim() || null),
+      service: $('#txBooking').value ? null : ($('#txSvc').value || ($('#txProj').value.trim() ? null : UMUM))
     };
     try{
       if(ed) await saveRow('transactions', existing.id, data, 'transactions');

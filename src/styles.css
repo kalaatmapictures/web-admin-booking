@@ -1041,3 +1041,28 @@ body,.card,.sidebar,.mobnav,.chip,.fld input,.fld select,.fld textarea{transitio
 .xl tr.xl-new .btn{border-radius:0;height:34px;box-shadow:none}
 .xl tfoot td,.xl tfoot th{position:sticky;bottom:0;background:var(--bg-2);font-weight:700;border-top:2px solid var(--line)}
 .xl-tl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)!important}
+
+/* ---------- KEUANGAN → LAPORAN ---------- */
+.rp-kpis{margin:14px 0 4px}
+.rp-two{display:grid;gap:0 16px}
+@media(min-width:1100px){ .rp-two{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr)} }
+.lr{padding:8px 18px}
+.lr-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.lr-row:last-child{border-bottom:0}
+.lr-row small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.lr-row.i{padding-left:14px;color:var(--ink-2)}
+.lr-row.i b{font-weight:500;color:var(--ink-2)}
+.lr-row.h b,.lr-row.h span{font-weight:700}
+.lr-row.t{border-top:1.5px solid var(--line);border-bottom:1.5px solid var(--line);font-weight:700;margin-top:2px}
+.lr-row.g{background:var(--tint);margin:8px -18px -8px;padding:13px 18px;border-radius:0 0 var(--r) var(--r);font-weight:700;color:var(--primary)}
+.lr-row.g b{font-size:15px}
+.lr-g{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:12px 0 2px}
+.rp-chart{width:100%;overflow:hidden}
+.rp-chart svg{display:block}
+.rp-legend{display:flex;gap:16px;font-size:11.5px;color:var(--ink-2);margin-bottom:8px}
+.rp-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+:root{--s1:#4A46E0;--s2:#eb6834;--s3:#13996a}
+:root[data-theme="dark"]{--s1:#6E6AF6;--s2:#d95926;--s3:#199e70}
+.rp-legend .s1,.rp-bar.s1{background:var(--s1);fill:var(--s1)}
+.rp-legend .s2,.rp-bar.s2{background:var(--s2);fill:var(--s2)}
+.rp-legend .s3,.rp-bar.s3{background:var(--s3);fill:var(--s3)}
