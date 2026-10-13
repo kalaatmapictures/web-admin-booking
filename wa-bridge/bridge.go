@@ -195,35 +195,87 @@ func (b *Bridge) handleMessage(m *events.Message, fromHistory bool) {
 	if !fromHistory {
 		log.Printf("chat masuk dari %s (%s)", maskPhone(phone, jid), ts.Format("02 Jan 15:04"))
 	}
-	b.outbox.Add(inbound{Type: "message", JID: jid, LID: lid, Phone: phone, Name: strings.TrimSpace(info.PushName),
+	b.outbox.Add(inbound{Type: "message", JID: jid, LID: lid, Phone: phone, Name: b.contactName(info),
 		Text: text, TS: ts.UTC().Format(time.RFC3339)})
 }
 
-// Laptop mati lama → sebagian pesan bisa datang lewat sinkronisasi riwayat.
-// Hanya pesan setelah perangkat ditautkan yang diproses (chat lama tidak diimpor).
+// historyDays: saat ditautkan, WhatsApp mengirim riwayat chat. Chat masuk dalam
+// rentang ini ikut dijadikan lead (mis. chat hari ini sebelum QR discan). Riwayat juga
+// datang saat laptop mati lama — chat lama yang sudah jadi lead hanya diperbarui.
+const historyDays = 7
+
 func (b *Bridge) handleHistory(e *events.HistorySync) {
-	pairedAt, err := time.Parse(time.RFC3339, b.outbox.Get("paired_at"))
-	if err != nil {
-		return
-	}
+	since := time.Now().AddDate(0, 0, -historyDays)
 	b.mu.Lock()
 	cli := b.client
 	b.mu.Unlock()
+	n := 0
 	for _, conv := range e.Data.GetConversations() {
 		chat, err := types.ParseJID(conv.GetID())
 		if err != nil || (chat.Server != types.DefaultUserServer && chat.Server != types.HiddenUserServer) {
 			continue
 		}
+		// per percakapan cukup chat masuk pertama (catatan lead) & terakhir (chat terakhir)
+		var first, last *events.Message
 		for _, hm := range conv.GetMessages() {
 			wm := hm.GetMessage()
-			if wm == nil || time.Unix(int64(wm.GetMessageTimestamp()), 0).Before(pairedAt) {
+			if wm == nil || time.Unix(int64(wm.GetMessageTimestamp()), 0).Before(since) {
 				continue
 			}
-			if evt, err := cli.ParseWebMessage(chat, wm); err == nil {
-				b.handleMessage(evt, true)
+			evt, err := cli.ParseWebMessage(chat, wm)
+			if err != nil || evt.Info.IsFromMe {
+				continue
+			}
+			if _, ok := messageText(evt.Message); !ok {
+				continue
+			}
+			if first == nil || evt.Info.Timestamp.Before(first.Info.Timestamp) {
+				first = evt
+			}
+			if last == nil || evt.Info.Timestamp.After(last.Info.Timestamp) {
+				last = evt
+			}
+		}
+		if first == nil {
+			continue
+		}
+		b.handleMessage(first, true)
+		if last != first {
+			b.handleMessage(last, true)
+		}
+		n++
+	}
+	if n > 0 {
+		log.Printf("riwayat (%s): %d chat masuk dari %d hari terakhir diproses", e.Data.GetSyncType(), n, historyDays)
+	}
+}
+
+// contactName: nama profil WhatsApp, atau nama yang tersimpan di kontak HP admin
+func (b *Bridge) contactName(info types.MessageInfo) string {
+	if n := strings.TrimSpace(info.PushName); n != "" && n != "-" {
+		return n
+	}
+	b.mu.Lock()
+	cli := b.client
+	b.mu.Unlock()
+	if cli == nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, j := range []types.JID{info.Sender.ToNonAD(), info.SenderAlt.ToNonAD(), info.Chat.ToNonAD()} {
+		if j.IsEmpty() {
+			continue
+		}
+		if c, err := cli.Store.Contacts.GetContact(ctx, j); err == nil && c.Found {
+			for _, n := range []string{c.FullName, c.FirstName, c.PushName, c.BusinessName} {
+				if n = strings.TrimSpace(n); n != "" {
+					return n
+				}
 			}
 		}
 	}
+	return ""
 }
 
 // resolve → (jid kunci, lid, nomor). WhatsApp kini sering memakai ID tersembunyi (LID);

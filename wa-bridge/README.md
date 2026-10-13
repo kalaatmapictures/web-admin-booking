@@ -17,6 +17,9 @@ WhatsApp ──► kalaatma-wa.exe (laptop) ──► Edge Function wa-bridge �
   tersambung lagi, chat yang tertunda ikut diproses (waktu lead = waktu chat asli).
   Kalau laptop mati lebih dari ±14 hari, WhatsApp bisa memutus tautan → scan ulang.
 - Data yang belum terkirim (internet putus) disimpan di antrian lokal dan dikirim ulang.
+- Saat ditautkan (scan QR), chat masuk dari **7 hari terakhir** ikut dijadikan lead
+  (dari tiap percakapan: chat pertama untuk catatan, chat terakhir untuk "chat terakhir").
+  Untuk mengambil ulang riwayat: web admin → Lead → Kelola → Putuskan, lalu scan QR lagi.
 - Program tidak membuka port ke internet; isi percakapan tidak disimpan — hanya
   nama, nomor, waktu, dan cuplikan chat pertama.
 - Nomor yang sudah jadi lead hanya diperbarui "chat terakhir"-nya; nomor client
