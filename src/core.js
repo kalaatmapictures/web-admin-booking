@@ -213,10 +213,13 @@ const FIELD = {
   delivery_date:'Tanggal delivery', labels:'Label', payment_due_date:'Jatuh tempo',
   rate:'Rate', rate_type:'Tipe rate', event:'Event', role:'Peran', note:'Catatan', gear:'Gear', is_active:'Aktif',
   kind:'Jenis', amount:'Jumlah', category:'Kategori', description:'Deskripsi', occurred_on:'Tanggal', booking_id:'Project',
-  hpp_estimate:'HPP', party:'Pihak', issued_on:'Tanggal', name:'Nama', whatsapp:'WhatsApp', email:'Email', source:'Sumber', follow_up_date:'Follow-up', estimated_value:'Estimasi', title:'Judul', task_type:'Jenis', assignee_id:'Penanggung jawab', due_date:'Deadline', notes:'Catatan'
+  hpp_estimate:'HPP', party:'Pihak', issued_on:'Tanggal', name:'Nama', whatsapp:'WhatsApp', email:'Email', source:'Sumber', follow_up_date:'Follow-up', estimated_value:'Estimasi', title:'Judul', task_type:'Jenis', assignee_id:'Penanggung jawab', due_date:'Deadline', notes:'Catatan',
+  client_name:'Nama client', bride_name:'Nama wanita', groom_name:'Nama pria', client_instagram:'Instagram', bride_instagram:'Instagram wanita',
+  groom_instagram:'Instagram pria', service:'Layanan', package_name:'Paket', number_of_people:'Jumlah orang', session_date:'Tanggal sesi',
+  session_time:'Jam mulai', session_end_time:'Jam selesai', location:'Lokasi', map_link:'Titik lokasi'
 };
 const MONEY_F = new Set(['custom_package_price','additional_charge','extra_time_charge','transport_charge','other_charge','discount','rate','amount','hpp_estimate','estimated_value']);
-const LINK_F = new Set(['photo_drive_link','video_drive_link','raw_file_link','final_file_link']);
+const LINK_F = new Set(['photo_drive_link','video_drive_link','raw_file_link','final_file_link','map_link']);
 function fmtField(k, v){
   if(v === null || v === undefined || v === '') return '—';
   if(MONEY_F.has(k)) return rp(v);
