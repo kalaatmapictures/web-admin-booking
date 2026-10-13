@@ -31,7 +31,7 @@ import (
 var (
 	BridgeURL    = ""
 	BridgeSecret = ""
-	Version      = "1.0.0"
+	Version      = "1.1.0"
 )
 
 const appName = "Kalaatma WA"
