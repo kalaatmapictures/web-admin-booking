@@ -398,6 +398,10 @@ update public.leads set status = case status when 'QUALIFIED' then 'WARM' when '
 alter table public.leads alter column status set default 'COLD';
 alter table public.leads add constraint leads_status_check check (status in ('COLD','WARM','HOT'));
 
+-- lead otomatis dari WhatsApp (program Kalaatma WA, lihat wa-bridge/README.md)
+alter table public.leads add column if not exists wa_jid text, add column if not exists last_contact_at timestamptz;
+create unique index if not exists leads_wa_jid_key on public.leads (wa_jid) where wa_jid is not null;
+
 create table if not exists public.clients (
   id                uuid primary key default gen_random_uuid(),
   name              text not null,
@@ -474,12 +478,14 @@ cross join lateral (select c2.subtotal - b.discount as total) c3
 cross join lateral (select (b.payment_due_date is not null and b.payment_due_date < public.today_wib()
                             and c1.paid < c3.total) as overdue) c4;
 
+-- kolom ditulis eksplisit: kolom baru ditambahkan di akhir supaya bisa create or replace
 create or replace view public.v_leads_board with (security_invoker = true) as
-select l.*,
+select l.id, l.name, l.whatsapp, l.email, l.category, l.source, l.status, l.follow_up_date, l.estimated_value, l.notes, l.created_at,
   case when l.follow_up_date is null then 'NONE'
        when l.follow_up_date < public.today_wib() then 'OVERDUE'
        when l.follow_up_date = public.today_wib() then 'TODAY'
-       else 'SAFE' end as follow_up_state
+       else 'SAFE' end as follow_up_state,
+  l.wa_jid, l.last_contact_at
 from public.leads l;
 
 -- ---------------------------------------------------------------------
@@ -689,3 +695,38 @@ alter table public.transactions add column if not exists project text;        --
 alter table public.transactions add column if not exists service text;        -- jenis layanan / 'Operasional Umum'
 alter table public.transactions add column if not exists import_batch text;   -- penanda data hasil impor
 create index if not exists transactions_import_idx on public.transactions (import_batch);
+
+-- ---------------------------------------------------------------------
+-- WHATSAPP → LEAD OTOMATIS — program Kalaatma WA (whatsmeow) di laptop admin
+-- mengirim status/QR/chat ke Edge Function wa-bridge (header x-bridge-secret).
+-- Admin hanya membaca wa_bridge dan mengirim perintah lewat kolom command.
+-- ---------------------------------------------------------------------
+create table if not exists public.wa_bridge (
+  id int primary key default 1 check (id = 1),
+  status text not null default 'offline',             -- offline | starting | qr | qr_expired | connected | disconnected | logged_out
+  qr text, qr_at timestamptz,                          -- QR aktif (PNG data URL)
+  phone text, push_name text, device text, version text,
+  last_seen timestamptz,                               -- heartbeat terakhir dari laptop
+  last_message_at timestamptz,
+  leads_created int not null default 0,
+  command text check (command in ('pair','logout')), command_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+insert into public.wa_bridge (id) values (1) on conflict (id) do nothing;
+alter table public.wa_bridge enable row level security;
+drop policy if exists "admin baca wa_bridge" on public.wa_bridge;
+create policy "admin baca wa_bridge" on public.wa_bridge for select to authenticated using (public.is_admin());
+drop policy if exists "admin perintah wa_bridge" on public.wa_bridge;
+create policy "admin perintah wa_bridge" on public.wa_bridge for update to authenticated using (public.is_admin()) with check (public.is_admin());
+revoke all on public.wa_bridge from anon, authenticated;
+grant select on public.wa_bridge to authenticated;
+grant update (command, command_at) on public.wa_bridge to authenticated;
+
+-- kunci program laptop: tanpa policy → hanya service role (Edge Function) yang bisa membaca
+create table if not exists public.wa_bridge_secret (
+  id int primary key default 1 check (id = 1),
+  secret text not null default encode(extensions.gen_random_bytes(24), 'hex')
+);
+insert into public.wa_bridge_secret (id) values (1) on conflict (id) do nothing;
+alter table public.wa_bridge_secret enable row level security;
+revoke all on public.wa_bridge_secret from anon, authenticated;

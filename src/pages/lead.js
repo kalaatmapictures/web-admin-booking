@@ -1,8 +1,11 @@
 /* LEAD (brief #1B) — calon client yang belum booking (DM Instagram, WhatsApp,
-   referral, …). Diinput manual oleh admin; status & follow-up dikelola di sini. */
+   referral, …). Diinput manual oleh admin, atau otomatis dari chat WhatsApp
+   (program Kalaatma WA, lihat lead-wa.js); status & follow-up dikelola di sini. */
 import { $, $$, S, F, RENDER, rp, esc, range, inRange, fmtDate, today, toast, empty, money, moneyVal,
          openModal, closeModal, confirmBox, api, logAct, describe, categories, searchBox, bindSearch, matchQuery } from '../core.js';
 import { normPeriod, periodButtons, bindPeriod, dISO } from '../datepicker.js';
+import { waBar, bindWaBar } from './lead-wa.js';
+import { ago } from './activity.js';
 
 const SORTS = [['newest','Lead terbaru'],['oldest','Lead terlama'],['fnear','Follow-up terdekat'],['flate','Follow-up terlambat']];
 /* suhu minat calon client */
@@ -53,6 +56,7 @@ RENDER.lead = () => {
   $('#pgSub').textContent = `${rows.length} lead · ${rows.filter(l=>l.follow_up_state==='OVERDUE').length} follow-up terlambat`;
 
   $('#page').innerHTML = `
+    ${waBar()}
     <div class="grid g4" style="margin-bottom:14px">
       <div class="card kpi accent"><div class="lbl">Hot</div><div class="val">${count('HOT')}</div><div class="cap">siap booking</div></div>
       <div class="card kpi"><div class="lbl">Warm</div><div class="val" style="color:var(--warn-ink)">${count('WARM')}</div><div class="cap">masih membandingkan</div></div>
@@ -75,7 +79,7 @@ RENDER.lead = () => {
     ${rows.length ? `<div class="card"><div class="tablewrap"><table>
       <thead><tr><th>Lead</th><th>Kategori</th><th>Status</th><th>Follow-up</th><th class="r">Estimasi</th><th class="r"></th></tr></thead>
       <tbody>${rows.map(l=>`<tr class="click" data-ld="${l.id}">
-        <td><div class="tname">${esc(l.name)}</div><div class="tsub">${[l.source, l.whatsapp].filter(Boolean).map(esc).join(' · ') || '—'}</div>
+        <td><div class="tname">${esc(l.name)}</div><div class="tsub">${[l.source, l.whatsapp].filter(Boolean).map(esc).join(' · ') || '—'}${l.last_contact_at ? ` · <span title="Chat WhatsApp terakhir">chat ${ago(l.last_contact_at)}</span>` : ''}</div>
           ${l.notes ? `<div class="tsub ld-note">${esc(l.notes)}</div>` : ''}</td>
         <td>${esc(l.category||'—')}</td>
         <td>${statusBadge(l.status)}</td>
@@ -99,6 +103,7 @@ RENDER.lead = () => {
   $$('[data-stop]').forEach(a => a.onclick = e => e.stopPropagation());
   $$('[data-ldedit]').forEach(b => b.onclick = e => { e.stopPropagation(); leadForm(S.data.leads.find(l => l.id === b.dataset.ldedit)); });
   $$('[data-lddel]').forEach(b => b.onclick = e => { e.stopPropagation(); removeLead(b.dataset.lddel); });
+  bindWaBar(async () => { await reloadLeads(); RENDER.lead(); });
 };
 
 /* ---------- tambah / ubah ---------- */

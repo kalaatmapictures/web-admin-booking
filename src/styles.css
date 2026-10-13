@@ -1074,3 +1074,39 @@ body,.card,.sidebar,.mobnav,.chip,.fld input,.fld select,.fld textarea{transitio
 .rp-ptools .selchip{border:2px solid transparent;flex:0 0 auto}
 .rp-ptools .selchip select{padding-top:0;padding-bottom:0;height:100%}
 @media(max-width:640px){ .sec-h .rp-ptools{width:100%;margin-left:0} .rp-ptools .searchbox{flex:1 1 0;width:auto;max-width:none} .rp-ptools .selchip select{max-width:120px} }
+
+/* =====================================================================
+   LEAD → WHATSAPP OTOMATIS (program Kalaatma WA)
+   ===================================================================== */
+.wa-bar{display:flex;align-items:center;gap:14px;padding:14px 18px;margin-bottom:14px}
+.wa-txt{flex:1;min-width:0;display:grid;gap:2px}
+.wa-txt b{font-size:13.5px;display:flex;align-items:center;gap:7px}
+.wa-txt .tsub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wa-ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto;background:var(--tint);color:var(--muted)}
+.wa-ic svg{width:20px;height:20px}
+.wa-ic.wa-ok{background:#25D366;color:#fff}
+.wa-ic.wa-warn{background:var(--warn-bg);color:var(--warn-ink)}
+.wa-ic.wa-info{background:var(--tint);color:var(--primary)}
+.wa-dot{width:8px;height:8px;border-radius:99px;flex:0 0 auto;background:var(--muted)}
+.wa-dot.wa-ok{background:#25D366;box-shadow:0 0 0 3px rgba(37,211,102,.18)}
+.wa-dot.wa-warn{background:var(--warn-ink)}
+.wa-dot.wa-info{background:var(--primary);animation:waPulse 1.4s ease-in-out infinite}
+.wa-dot.wa-off{display:none}
+@keyframes waPulse{50%{opacity:.35}}
+.wa-qrbox{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:18px;margin-bottom:16px;border-radius:18px;background:var(--surface);box-shadow:var(--shadow)}
+.wa-qrbox img{width:260px;height:260px;max-width:100%;border-radius:12px;background:#fff;padding:8px;image-rendering:pixelated}
+.wa-qrbox.wa-empty{padding:30px 18px}
+.wa-qrbox.wa-empty b{font-size:14px}
+.wa-qrbox code{background:var(--tint);padding:1px 5px;border-radius:5px;font-size:11.5px}
+.wa-spin{width:28px;height:28px;border-radius:99px;border:3px solid var(--tint);border-top-color:var(--primary);animation:waSpin 1s linear infinite}
+@keyframes waSpin{to{transform:rotate(360deg)}}
+.wa-acc{padding:16px 18px;display:grid;gap:9px}
+.wa-acc-h{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.wa-acc-h b{font-size:15px}
+.wa-kv{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;color:var(--muted)}
+.wa-kv b{color:var(--ink);font-weight:600;text-align:right}
+@media(max-width:640px){
+  .wa-bar{flex-wrap:wrap;padding:13px 14px}
+  .wa-txt .tsub{white-space:normal}
+  .wa-bar .btn{width:100%}
+}
