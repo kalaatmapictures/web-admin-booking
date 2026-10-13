@@ -1110,3 +1110,8 @@ body,.card,.sidebar,.mobnav,.chip,.fld input,.fld select,.fld textarea{transitio
   .wa-txt .tsub{white-space:normal}
   .wa-bar .btn{width:100%}
 }
+
+/* Booking → Ubah data booking: tanggal + jam sebaris, tidak keluar dari modal */
+.ei-when{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.ei-when .fld, .ei-when input{min-width:0}
+.ei-when .fld:first-child{grid-column:1 / -1}
