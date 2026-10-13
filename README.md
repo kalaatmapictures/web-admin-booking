@@ -6,6 +6,10 @@ Web admin Kalaatma: Dashboard, Booking, Joblist (kanban), Lead, Completed Client
 
 Vite (HTML/CSS/JS murni) + Supabase, hosting Vercel.
 
+> Repo ini juga berisi **Kalaatma Photo Selection** (galeri seleksi foto untuk klien) di folder
+> [`photo-selection/`](photo-selection/README.md) — aplikasi Next.js terpisah dengan project Vercel sendiri
+> (Root Directory: `photo-selection`). BMS di root tidak terpengaruh.
+
 ## Alur integrasi
 
 ```
