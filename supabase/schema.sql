@@ -76,6 +76,7 @@ create table if not exists public.freelancers (
   created_at timestamptz not null default now()
 );
 -- kolom rate/rate_type di atas tidak dipakai lagi; rate kini per event di freelancer_rates
+alter table public.freelancers add column if not exists instagram text;   -- @username (tombol Instagram di kartu)
 
 /* Daftar pilihan yang bisa diatur admin: jenis rate (Per Project, Per Jam, …)
    dan event (Wedding, Graduation, …). */
