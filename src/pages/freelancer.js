@@ -158,6 +158,7 @@ function freelancerDetail(id){
       <div class="rowline" style="margin-top:6px"><span class="k">WhatsApp</span><span class="v">${esc(f.whatsapp||'—')}</span></div>
       <div class="rowline"><span class="k">Email</span><span class="v fl-mail">${esc(f.email||'—')}</span></div>
       <div class="rowline"><span class="k">Instagram</span><span class="v">${f.instagram ? `<a href="${igUrl(f.instagram)}" target="_blank" rel="noopener">${esc(f.instagram)}</a>` : '—'}</span></div>
+      <div class="rowline"><span class="k">Based</span><span class="v">${esc(f.based_in||'—')}</span></div>
       <div class="rowline"><span class="k">Total penugasan</span><span class="v">${done} project</span></div>
       <div class="rowline"><span class="k">Jadwal mendatang</span><span class="v">${upcoming.length} project</span></div>
       <div class="fl-sched" style="min-height:0">${upcoming.length
@@ -191,7 +192,7 @@ function editContact(id, backToDetail = false){
   const f = S.data.freelancers.find(x => x.id === id);
   if(!f) return;
   openModal(`<h3>Ubah kontak · ${esc(f.name)}</h3>
-    <p>Instagram boleh diisi link profil atau @username.</p>
+    <p>Instagram boleh diisi link profil atau @username. Based = kota domisili freelancer.</p>
     <div style="text-align:left;margin-top:16px">
       <div class="fld"><label>Nama <span style="color:var(--primary)">*</span></label><input id="ecName" value="${esc(f.name)}"></div>
       <div class="fgrid two" style="margin-top:11px">
@@ -199,13 +200,14 @@ function editContact(id, backToDetail = false){
         <div class="fld"><label>Email</label><input id="ecMail" type="email" value="${esc(f.email||'')}" placeholder="nama@kalaatma.id"></div>
       </div>
       <div class="fld" style="margin-top:11px"><label>Instagram</label><input id="ecIg" value="${esc(f.instagram||'')}" placeholder="https://instagram.com/username atau @username"></div>
+      <div class="fld" style="margin-top:11px"><label>Based (domisili)</label><input id="ecBased" value="${esc(f.based_in||'')}" placeholder="mis. Bandung"></div>
       <div id="ecErr" class="fl-err"></div>
     </div>
     <div class="acts"><button class="btn soft" data-mclose>Batal</button><button class="btn" id="ecSave">Simpan</button></div>`);
   $('#ecSave').onclick = async () => {
     const name = $('#ecName').value.trim();
     if(!name) return showErr('#ecErr', 'Nama wajib diisi.');
-    const next = {name, whatsapp: $('#ecWa').value.trim() || null, email: $('#ecMail').value.trim() || null, instagram: igNorm($('#ecIg').value)};
+    const next = {name, whatsapp: $('#ecWa').value.trim() || null, email: $('#ecMail').value.trim() || null, instagram: igNorm($('#ecIg').value), based_in: $('#ecBased').value.trim() || null};
     const patch = Object.fromEntries(Object.entries(next).filter(([k, v]) => (f[k] ?? null) !== v));
     if(!Object.keys(patch).length){ closeModal(); if(backToDetail) freelancerDetail(id); return; }
     const btn = $('#ecSave'); btn.disabled = true;
@@ -508,7 +510,10 @@ function addFreelancer(){
       <div class="fld"><label>WhatsApp</label><input id="nfWa" inputmode="tel" placeholder="6281234567890"></div>
       <div class="fld"><label>Email</label><input id="nfMail" type="email" placeholder="nama@kalaatma.id"></div>
     </div>
-    <div class="fld" style="margin-top:11px"><label>Instagram</label><input id="nfIg" placeholder="https://instagram.com/username atau @username"></div>
+    <div class="fgrid two" style="margin-top:11px">
+      <div class="fld"><label>Instagram</label><input id="nfIg" placeholder="link profil atau @username"></div>
+      <div class="fld"><label>Based (domisili)</label><input id="nfBased" placeholder="mis. Bandung"></div>
+    </div>
     <div class="fld" style="margin-top:11px"><label>Gear (satu per baris)</label>
       <textarea id="nfGear" rows="4" placeholder="Sony A7 III&#10;Lensa 24-70mm f/2.8"></textarea></div>
     <div id="nfErr" class="fl-err"></div>
@@ -555,7 +560,7 @@ function addFreelancer(){
       const [f] = await api('freelancers', {method:'POST', prefer:'return=representation', body:{
         // peran tersimpan di tiap rate; kolom role freelancer = peran baris pertama
         name, role: rowRoles()[0] || 'PHOTOGRAPHER',
-        whatsapp: $('#nfWa').value.trim() || null, email: $('#nfMail').value.trim() || null, instagram: igNorm($('#nfIg').value),
+        whatsapp: $('#nfWa').value.trim() || null, email: $('#nfMail').value.trim() || null, instagram: igNorm($('#nfIg').value), based_in: $('#nfBased').value.trim() || null,
         gear: $('#nfGear').value.split('\n').map(x => x.trim()).filter(Boolean),
         is_active: true
       }});
