@@ -11,6 +11,12 @@ const CREW_SLOT = {PHOTOGRAPHER:'photographer_id', VIDEOGRAPHER:'videographer_id
 const SLOT_LABEL = {photographer_id:'Photographer', videographer_id:'Videographer'};
 const DEFAULT_RATE_TYPES = ['Per Project', 'Per Jam', 'Per Hari'];
 
+/* Instagram: simpan sebagai @username; tautan selalu ke instagram.com/<username> */
+const IG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>';
+const igUser = v => String(v || '').trim().replace(/^@+/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/?#].*$/, '');
+const igNorm = v => { const u = igUser(v); return u ? '@' + u : null; };
+const igUrl = v => 'https://www.instagram.com/' + encodeURIComponent(igUser(v)) + '/';
+
 const ICON = {
   edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
   del:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>',
@@ -100,6 +106,9 @@ function renderList(tabs){
           ? `<span class="tsub">Berikutnya</span> ${fmtDate(upcoming[0].session_date)} — ${esc(upcoming[0].client_display)}`
           : 'Belum ada jadwal mendatang.'}</div>
 
+        <div class="fl-ig">${f.instagram
+          ? `<a class="fl-igbtn" href="${igUrl(f.instagram)}" target="_blank" rel="noopener" title="Buka Instagram ${esc(f.instagram)}">${IG_SVG}<span>${esc(f.instagram)}</span></a>`
+          : `<button class="fl-igbtn off" data-flig="${f.id}" title="Isi akun Instagram">${IG_SVG}<span>+ Instagram</span></button>`}</div>
         <div class="fl-acts fl-two">
           <button class="btn soft sm" data-fldet="${f.id}">Detail</button>
           ${!f.is_active
@@ -111,6 +120,7 @@ function renderList(tabs){
       </div>`;}).join('')}</div>`;
 
   $$('[data-fldet]').forEach(b => b.onclick = () => freelancerDetail(b.dataset.fldet));
+  $$('[data-flig]').forEach(b => b.onclick = () => editContact(b.dataset.flig));
   $$('[data-fldel]').forEach(b => b.onclick = () => delegateModal(b.dataset.fldel));
   $$('[data-flrm]').forEach(b => b.onclick = () => removeFreelancer(b.dataset.flrm));
   $('#addFl').onclick = () => addFreelancer();
@@ -141,11 +151,13 @@ function freelancerDetail(id){
       ${f.email ? `<a class="btn soft sm" href="mailto:${esc(f.email)}">Email</a>` : `<span class="btn sm fl-off">Email</span>`}
       <button class="btn soft sm" id="fdRep">Laporan</button>
     </div>
+    ${f.instagram ? `<a class="fl-igbtn fl-igwide" href="${igUrl(f.instagram)}" target="_blank" rel="noopener">${IG_SVG}<span>Buka Instagram ${esc(f.instagram)}</span></a>` : ''}
 
     <div class="card" style="margin-bottom:13px">
-      <b style="font-size:13px">Kontak & penugasan</b>
+      <div class="gear-h" style="margin-top:0">Kontak & penugasan <button class="gear-edit" id="fdContact">Ubah kontak</button></div>
       <div class="rowline" style="margin-top:6px"><span class="k">WhatsApp</span><span class="v">${esc(f.whatsapp||'—')}</span></div>
       <div class="rowline"><span class="k">Email</span><span class="v fl-mail">${esc(f.email||'—')}</span></div>
+      <div class="rowline"><span class="k">Instagram</span><span class="v">${f.instagram ? `<a href="${igUrl(f.instagram)}" target="_blank" rel="noopener">${esc(f.instagram)}</a>` : '—'}</span></div>
       <div class="rowline"><span class="k">Total penugasan</span><span class="v">${done} project</span></div>
       <div class="rowline"><span class="k">Jadwal mendatang</span><span class="v">${upcoming.length} project</span></div>
       <div class="fl-sched" style="min-height:0">${upcoming.length
@@ -171,6 +183,37 @@ function freelancerDetail(id){
   $('#fdRates').onclick = () => { closeDrawer(); manageRates(id); };
   $('#fdGear').onclick = () => { closeDrawer(); editGear(id); };
   $('#fdRep').onclick = () => { closeDrawer(); freelancerReport(id); };
+  $('#fdContact').onclick = () => { closeDrawer(); editContact(id, true); };
+}
+
+/* ---------- ubah kontak: nama, WhatsApp, email, Instagram ---------- */
+function editContact(id, backToDetail = false){
+  const f = S.data.freelancers.find(x => x.id === id);
+  if(!f) return;
+  openModal(`<h3>Ubah kontak · ${esc(f.name)}</h3>
+    <p>Instagram boleh diisi link profil atau @username.</p>
+    <div style="text-align:left;margin-top:16px">
+      <div class="fld"><label>Nama <span style="color:var(--primary)">*</span></label><input id="ecName" value="${esc(f.name)}"></div>
+      <div class="fgrid two" style="margin-top:11px">
+        <div class="fld"><label>WhatsApp</label><input id="ecWa" inputmode="tel" value="${esc(f.whatsapp||'')}" placeholder="6281234567890"></div>
+        <div class="fld"><label>Email</label><input id="ecMail" type="email" value="${esc(f.email||'')}" placeholder="nama@kalaatma.id"></div>
+      </div>
+      <div class="fld" style="margin-top:11px"><label>Instagram</label><input id="ecIg" value="${esc(f.instagram||'')}" placeholder="https://instagram.com/username atau @username"></div>
+      <div id="ecErr" class="fl-err"></div>
+    </div>
+    <div class="acts"><button class="btn soft" data-mclose>Batal</button><button class="btn" id="ecSave">Simpan</button></div>`);
+  $('#ecSave').onclick = async () => {
+    const name = $('#ecName').value.trim();
+    if(!name) return showErr('#ecErr', 'Nama wajib diisi.');
+    const next = {name, whatsapp: $('#ecWa').value.trim() || null, email: $('#ecMail').value.trim() || null, instagram: igNorm($('#ecIg').value)};
+    const patch = Object.fromEntries(Object.entries(next).filter(([k, v]) => (f[k] ?? null) !== v));
+    if(!Object.keys(patch).length){ closeModal(); if(backToDetail) freelancerDetail(id); return; }
+    const btn = $('#ecSave'); btn.disabled = true;
+    try{ await saveRow('freelancers', id, patch, 'freelancers'); }
+    catch(e){ btn.disabled = false; return showErr('#ecErr', 'Gagal menyimpan: ' + e.message); }
+    closeModal(); RENDER.freelancer(); toast('Kontak diperbarui');
+    if(backToDetail) freelancerDetail(id);
+  };
 }
 
 /* ---------- nonaktifkan / hapus ----------
@@ -465,6 +508,7 @@ function addFreelancer(){
       <div class="fld"><label>WhatsApp</label><input id="nfWa" inputmode="tel" placeholder="6281234567890"></div>
       <div class="fld"><label>Email</label><input id="nfMail" type="email" placeholder="nama@kalaatma.id"></div>
     </div>
+    <div class="fld" style="margin-top:11px"><label>Instagram</label><input id="nfIg" placeholder="https://instagram.com/username atau @username"></div>
     <div class="fld" style="margin-top:11px"><label>Gear (satu per baris)</label>
       <textarea id="nfGear" rows="4" placeholder="Sony A7 III&#10;Lensa 24-70mm f/2.8"></textarea></div>
     <div id="nfErr" class="fl-err"></div>
@@ -511,7 +555,7 @@ function addFreelancer(){
       const [f] = await api('freelancers', {method:'POST', prefer:'return=representation', body:{
         // peran tersimpan di tiap rate; kolom role freelancer = peran baris pertama
         name, role: rowRoles()[0] || 'PHOTOGRAPHER',
-        whatsapp: $('#nfWa').value.trim() || null, email: $('#nfMail').value.trim() || null,
+        whatsapp: $('#nfWa').value.trim() || null, email: $('#nfMail').value.trim() || null, instagram: igNorm($('#nfIg').value),
         gear: $('#nfGear').value.split('\n').map(x => x.trim()).filter(Boolean),
         is_active: true
       }});
