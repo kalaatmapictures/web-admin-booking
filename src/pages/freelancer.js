@@ -2,7 +2,7 @@
    Daftar freelancer + rate per event (rate type & event bisa diatur admin)
    + laporan seberapa sering tiap freelancer ditugaskan. */
 import { $, $$, S, F, RENDER, rp, esc, today, fmtDate, initials, toast, money, moneyVal,
-         openModal, closeModal, confirmBox, saveRow, saveBooking, api, logAct, describe, deleteFreelancer } from '../core.js';
+         openModal, closeModal, openDrawer, closeDrawer, confirmBox, saveRow, saveBooking, api, logAct, describe, deleteFreelancer } from '../core.js';
 import { STAGES, stageOf } from '../stages.js';
 import { calLabel, dateButton, bindDateButton, dISO } from '../datepicker.js';
 import { ROLE_LABEL, GENERAL_EVENT, uniq, ratesOf, rateRole, roleName, rolesOf, hasRole, rolesText, rateFor } from '../freelancers.js';
@@ -81,8 +81,6 @@ function renderList(tabs){
       const done = jobs.filter(b => b.status !== 'CANCELLED').length;
       const slots = crewSlots(f);
       const open = S.data.bookings.filter(b => stageOf(b) && slots.some(r => needsSlot(b, r))).length;
-      const rates = ratesOf(f.id);
-      const multi = rolesOf(f).length > 1;
       return `<div class="card fl-card ${f.is_active ? '' : 'fl-inactive'}">
         <div class="fl-head">
           <span class="fl-av">${initials(f.name)}</span>
@@ -94,81 +92,85 @@ function renderList(tabs){
           <button class="ibtn del" data-flrm="${f.id}" title="Nonaktifkan / hapus freelancer" aria-label="Nonaktifkan atau hapus freelancer">${ICON.del}</button>
         </div>
 
-        <div class="fl-rows">
-          <div class="rowline"><span class="k">WhatsApp</span><span class="v">${esc(f.whatsapp||'—')}</span></div>
-          <div class="rowline"><span class="k">Email</span><span class="v fl-mail">${esc(f.email||'—')}</span></div>
-          <div class="rowline"><span class="k">Total penugasan</span><span class="v">${done} project</span></div>
-          <div class="rowline"><span class="k">Jadwal mendatang</span><span class="v">${upcoming.length} project</span></div>
+        <div class="fl-mini">
+          <div><b>${done}</b><span>penugasan</span></div>
+          <div><b>${upcoming.length}</b><span>jadwal mendatang</span></div>
         </div>
         <div class="fl-sched">${upcoming.length
-          ? upcoming.slice(0,2).map(b=>`${fmtDate(b.session_date)} — ${esc(b.client_display)}`).join('<br>')
+          ? `<span class="tsub">Berikutnya</span> ${fmtDate(upcoming[0].session_date)} — ${esc(upcoming[0].client_display)}`
           : 'Belum ada jadwal mendatang.'}</div>
 
-        <div class="gear">
-          <div class="gear-h">Rate per peran & event
-            <button class="gear-edit" data-edit="${f.id}">Kelola</button></div>
-          ${rates.length ? (() => {
-            const vals = rates.map(r => Number(r.rate) || 0), lo = Math.min(...vals), hi = Math.max(...vals);
-            const roles = uniq(rates.map(r => roleName(rateRole(r))));
-            return `<div class="fl-ratesum">
-              <div class="fl-ratesum-t"><b>${lo === hi ? rp(lo) : `${rp(lo)} – ${rp(hi)}`}</b>
-                <span class="tsub">${rates.length} rate${multi && roles.length > 1 ? ' · ' + roles.map(esc).join(', ') : ''}</span></div>
-              <button class="btn soft sm" data-flrates="${f.id}">Detail harga</button></div>`;
-          })() : `<div class="tsub">Belum ada rate.</div>`}
-        </div>
-
-        <div class="gear">
-          <div class="gear-h">Gear yang dibawa
-            <button class="gear-edit" data-flgear="${f.id}">Ubah</button></div>
-          ${(f.gear||[]).length
-            ? `<div class="gear-list">${f.gear.map(g=>`<span class="gear-c">${esc(g)}</span>`).join('')}</div>`
-            : `<div class="tsub">Belum dicatat.</div>`}
-        </div>
-
-        <div class="fl-acts">
+        <div class="fl-acts fl-two">
+          <button class="btn soft sm" data-fldet="${f.id}">Detail</button>
           ${!f.is_active
-            ? `<span class="fl-note">Nonaktif — aktifkan lewat ikon hapus untuk menugaskan lagi</span>`
+            ? `<span class="btn sm fl-off" title="Aktifkan lewat ikon hapus untuk menugaskan lagi">Nonaktif</span>`
             : slots.length
             ? `<button class="btn sm fl-main" data-fldel="${f.id}">Delegasikan${open?` <span class="fl-n">${open}</span>`:''}</button>`
-            : `<span class="fl-note">Tidak ada slot crew untuk peran ini</span>`}
-          <div class="fl-row2">
-            ${f.whatsapp
-              ? `<a class="btn wa sm" href="https://wa.me/${esc(f.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>`
-              : `<span class="btn sm fl-off">WhatsApp</span>`}
-            ${f.email
-              ? `<a class="btn soft sm" href="mailto:${esc(f.email)}">Email</a>`
-              : `<span class="btn sm fl-off">Email</span>`}
-            <button class="btn soft sm" data-flrep="${f.id}">Laporan</button>
-          </div>
+            : `<span class="btn sm fl-off" title="Tidak ada slot crew untuk peran ini">Delegasikan</span>`}
         </div>
       </div>`;}).join('')}</div>`;
 
-  $$('[data-edit]').forEach(b => b.onclick = () => manageRates(b.dataset.edit));
-  $$('[data-flrates]').forEach(b => b.onclick = () => rateDetail(b.dataset.flrates));
-  $$('[data-flgear]').forEach(b => b.onclick = () => editGear(b.dataset.flgear));
+  $$('[data-fldet]').forEach(b => b.onclick = () => freelancerDetail(b.dataset.fldet));
   $$('[data-fldel]').forEach(b => b.onclick = () => delegateModal(b.dataset.fldel));
-  $$('[data-flrep]').forEach(b => b.onclick = () => freelancerReport(b.dataset.flrep));
   $$('[data-flrm]').forEach(b => b.onclick = () => removeFreelancer(b.dataset.flrm));
   $('#addFl').onclick = () => addFreelancer();
   $('#flOpts').onclick = () => manageOptions();
 }
 
-/* ---------- detail harga: semua rate dikelompokkan per peran ---------- */
-function rateDetail(id){
+/* ---------- detail freelancer (drawer): kontak, jadwal, rate per peran, gear, laporan ---------- */
+function freelancerDetail(id){
   const f = S.data.freelancers.find(x => x.id === id);
   if(!f) return;
+  const jobs = S.data.bookings.filter(b => b.photographer_id === f.id || b.videographer_id === f.id);
+  const upcoming = jobs.filter(b => b.session_date >= today() && b.status !== 'CANCELLED')
+                       .sort((a, b) => a.session_date.localeCompare(b.session_date));
+  const done = jobs.filter(b => b.status !== 'CANCELLED').length;
   const rates = ratesOf(id);
   const groups = uniq(rates.map(r => rateRole(r))).map(role => ({role, list: rates.filter(r => rateRole(r) === role)
     .sort((a, b) => String(a.event).localeCompare(String(b.event)))}));
-  openModal(`<h3>Detail harga · ${esc(f.name)}</h3>
-    <p>${esc(rolesText(f))} · ${rates.length} rate</p>
-    <div class="fl-ratedet">${groups.map(g => `
-      <div class="mlabel">${esc(roleName(g.role))}</div>
-      <div class="fl-ratetbl">${g.list.map(r => `<div class="fl-rate"><span class="ev">${esc(r.event)}</span>
-        <span class="v stack">${rp(r.rate)}<span class="tsub">${esc(r.rate_type)}</span></span></div>`).join('')}</div>`).join('')}
+  const vals = rates.map(r => Number(r.rate) || 0);
+  openDrawer(`
+    <div class="dh">
+      <span class="fl-av">${initials(f.name)}</span>
+      <div style="min-width:0"><h2>${esc(f.name)}</h2><div class="tsub">${esc(rolesText(f))}</div>
+        <span class="badge ${f.is_active?'b-ok':'b-grey'}" style="margin-top:6px">${f.is_active?'Aktif':'Nonaktif'}</span></div>
+      <button class="x" data-dclose>✕</button>
     </div>
-    <div class="acts"><button class="btn soft" data-mclose>Tutup</button><button class="btn" id="rdManage">Kelola rate</button></div>`);
-  $('#rdManage').onclick = () => manageRates(id);
+    <div class="fl-dacts">
+      ${f.whatsapp ? `<a class="btn wa sm" href="https://wa.me/${esc(f.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>` : `<span class="btn sm fl-off">WhatsApp</span>`}
+      ${f.email ? `<a class="btn soft sm" href="mailto:${esc(f.email)}">Email</a>` : `<span class="btn sm fl-off">Email</span>`}
+      <button class="btn soft sm" id="fdRep">Laporan</button>
+    </div>
+
+    <div class="card" style="margin-bottom:13px">
+      <b style="font-size:13px">Kontak & penugasan</b>
+      <div class="rowline" style="margin-top:6px"><span class="k">WhatsApp</span><span class="v">${esc(f.whatsapp||'—')}</span></div>
+      <div class="rowline"><span class="k">Email</span><span class="v fl-mail">${esc(f.email||'—')}</span></div>
+      <div class="rowline"><span class="k">Total penugasan</span><span class="v">${done} project</span></div>
+      <div class="rowline"><span class="k">Jadwal mendatang</span><span class="v">${upcoming.length} project</span></div>
+      <div class="fl-sched" style="min-height:0">${upcoming.length
+        ? upcoming.slice(0, 5).map(b => `${fmtDate(b.session_date)} — ${esc(b.client_display)}`).join('<br>') + (upcoming.length > 5 ? `<br>+${upcoming.length - 5} lainnya` : '')
+        : 'Belum ada jadwal mendatang.'}</div>
+    </div>
+
+    <div class="card" style="margin-bottom:13px">
+      <div class="gear-h" style="margin-top:0">Rate per peran & event <button class="gear-edit" id="fdRates">Kelola</button></div>
+      ${rates.length ? `<div class="tsub" style="margin-bottom:4px">${rates.length} rate · ${Math.min(...vals) === Math.max(...vals) ? rp(vals[0]) : `${rp(Math.min(...vals))} – ${rp(Math.max(...vals))}`}</div>
+        <div class="fl-ratedet">${groups.map(g => `
+          <div class="mlabel">${esc(roleName(g.role))}</div>
+          <div class="fl-ratetbl">${g.list.map(r => `<div class="fl-rate"><span class="ev">${esc(r.event)}</span>
+            <span class="v stack">${rp(r.rate)}<span class="tsub">${esc(r.rate_type)}</span></span></div>`).join('')}</div>`).join('')}
+        </div>` : '<div class="tsub">Belum ada rate.</div>'}
+    </div>
+
+    <div class="card" style="margin-bottom:13px">
+      <div class="gear-h" style="margin-top:0">Gear yang dibawa <button class="gear-edit" id="fdGear">Ubah</button></div>
+      ${(f.gear||[]).length ? `<div class="gear-list">${f.gear.map(g => `<span class="gear-c">${esc(g)}</span>`).join('')}</div>` : '<div class="tsub">Belum dicatat.</div>'}
+    </div>`);
+  // form kelola/ubah/laporan memakai modal → tutup drawer dulu supaya data tidak basi
+  $('#fdRates').onclick = () => { closeDrawer(); manageRates(id); };
+  $('#fdGear').onclick = () => { closeDrawer(); editGear(id); };
+  $('#fdRep').onclick = () => { closeDrawer(); freelancerReport(id); };
 }
 
 /* ---------- nonaktifkan / hapus ----------
