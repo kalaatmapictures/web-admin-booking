@@ -107,9 +107,14 @@ function renderList(tabs){
         <div class="gear">
           <div class="gear-h">Rate per peran & event
             <button class="gear-edit" data-edit="${f.id}">Kelola</button></div>
-          ${rates.length
-            ? `<div class="fl-rates">${rates.map(r => `<div class="fl-rate"><span class="ev">${multi ? `<span class="fl-role">${esc(roleName(rateRole(r)))}</span>` : ''}${esc(r.event)}</span><span class="v stack">${rp(r.rate)}<span class="tsub">${esc(r.rate_type)}</span></span></div>`).join('')}</div>`
-            : `<div class="tsub">Belum ada rate.</div>`}
+          ${rates.length ? (() => {
+            const vals = rates.map(r => Number(r.rate) || 0), lo = Math.min(...vals), hi = Math.max(...vals);
+            const roles = uniq(rates.map(r => roleName(rateRole(r))));
+            return `<div class="fl-ratesum">
+              <div class="fl-ratesum-t"><b>${lo === hi ? rp(lo) : `${rp(lo)} – ${rp(hi)}`}</b>
+                <span class="tsub">${rates.length} rate${multi && roles.length > 1 ? ' · ' + roles.map(esc).join(', ') : ''}</span></div>
+              <button class="btn soft sm" data-flrates="${f.id}">Detail harga</button></div>`;
+          })() : `<div class="tsub">Belum ada rate.</div>`}
         </div>
 
         <div class="gear">
@@ -139,12 +144,31 @@ function renderList(tabs){
       </div>`;}).join('')}</div>`;
 
   $$('[data-edit]').forEach(b => b.onclick = () => manageRates(b.dataset.edit));
+  $$('[data-flrates]').forEach(b => b.onclick = () => rateDetail(b.dataset.flrates));
   $$('[data-flgear]').forEach(b => b.onclick = () => editGear(b.dataset.flgear));
   $$('[data-fldel]').forEach(b => b.onclick = () => delegateModal(b.dataset.fldel));
   $$('[data-flrep]').forEach(b => b.onclick = () => freelancerReport(b.dataset.flrep));
   $$('[data-flrm]').forEach(b => b.onclick = () => removeFreelancer(b.dataset.flrm));
   $('#addFl').onclick = () => addFreelancer();
   $('#flOpts').onclick = () => manageOptions();
+}
+
+/* ---------- detail harga: semua rate dikelompokkan per peran ---------- */
+function rateDetail(id){
+  const f = S.data.freelancers.find(x => x.id === id);
+  if(!f) return;
+  const rates = ratesOf(id);
+  const groups = uniq(rates.map(r => rateRole(r))).map(role => ({role, list: rates.filter(r => rateRole(r) === role)
+    .sort((a, b) => String(a.event).localeCompare(String(b.event)))}));
+  openModal(`<h3>Detail harga · ${esc(f.name)}</h3>
+    <p>${esc(rolesText(f))} · ${rates.length} rate</p>
+    <div class="fl-ratedet">${groups.map(g => `
+      <div class="mlabel">${esc(roleName(g.role))}</div>
+      <div class="fl-ratetbl">${g.list.map(r => `<div class="fl-rate"><span class="ev">${esc(r.event)}</span>
+        <span class="v stack">${rp(r.rate)}<span class="tsub">${esc(r.rate_type)}</span></span></div>`).join('')}</div>`).join('')}
+    </div>
+    <div class="acts"><button class="btn soft" data-mclose>Tutup</button><button class="btn" id="rdManage">Kelola rate</button></div>`);
+  $('#rdManage').onclick = () => manageRates(id);
 }
 
 /* ---------- nonaktifkan / hapus ----------
