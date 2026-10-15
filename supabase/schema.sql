@@ -440,3 +440,119 @@ create policy "admin menambah log" on public.admin_activity
 
 revoke all on public.v_bookings_board, public.v_leads_board from anon;
 grant select on public.v_bookings_board, public.v_leads_board to authenticated;
+
+-- ---------------------------------------------------------------------
+-- META ADS — data performa iklan, ditarik dari Meta Marketing API oleh
+-- Edge Function `meta-ads-sync` (supabase/functions/meta-ads-sync).
+-- Satu baris = satu iklan pada satu hari. Hanya admin yang bisa membaca;
+-- yang menulis hanya Edge Function (service role, melewati RLS).
+-- ---------------------------------------------------------------------
+create table if not exists public.meta_ads_insights (
+  ad_id         text not null,
+  date          date not null,
+  account_id    text not null,
+  currency      text,
+  campaign_id   text,
+  campaign_name text,
+  objective     text,
+  adset_id      text,
+  adset_name    text,
+  ad_name       text,
+  spend         numeric not null default 0,
+  impressions   bigint  not null default 0,
+  reach         bigint  not null default 0,   -- reach harian (tidak boleh dijumlah sebagai reach unik)
+  clicks        bigint  not null default 0,   -- semua klik
+  link_clicks   bigint  not null default 0,
+  messages      bigint  not null default 0,   -- percakapan WhatsApp/Messenger/DM dimulai
+  leads         bigint  not null default 0,
+  results       bigint  not null default 0,   -- hasil utama sesuai tujuan campaign
+  result_type   text    not null default 'link_clicks'
+                check (result_type in ('messages','leads','link_clicks','reach')),
+  actions       jsonb,                          -- data mentah semua aksi dari Meta
+  synced_at     timestamptz not null default now(),
+  primary key (ad_id, date)
+);
+create index if not exists meta_ads_insights_date on public.meta_ads_insights (date);
+
+-- status & budget terkini per iklan (bukan per hari)
+create table if not exists public.meta_ads (
+  ad_id            text primary key,
+  ad_name          text,
+  status           text,                        -- effective_status: ACTIVE, PAUSED, CAMPAIGN_PAUSED, ...
+  adset_id         text,
+  adset_name       text,
+  adset_status     text,
+  adset_budget     numeric,                     -- budget harian ad set (Rp), null bila pakai budget campaign
+  campaign_id      text,
+  campaign_name    text,
+  campaign_status  text,
+  campaign_budget  numeric,                     -- budget harian campaign (Rp), null bila budget di ad set
+  objective        text,
+  thumbnail_url    text,
+  created_time     timestamptz,
+  synced_at        timestamptz not null default now()
+);
+
+-- riwayat sinkronisasi (sukses/gagal) untuk ditampilkan di BMS
+create table if not exists public.meta_sync_runs (
+  id          bigint generated always as identity primary key,
+  started_at  timestamptz not null default now(),
+  finished_at timestamptz,
+  trigger     text not null default 'cron' check (trigger in ('cron','manual')),
+  date_from   date,
+  date_to     date,
+  ok          boolean,
+  rows        int,
+  message     text
+);
+
+-- ringkasan per iklan untuk satu periode (dipakai halaman Meta Ads)
+create or replace function public.meta_ads_by_ad(p_from date, p_to date)
+returns table (
+  ad_id text, ad_name text, adset_id text, adset_name text, campaign_id text, campaign_name text,
+  objective text, status text, adset_status text, campaign_status text,
+  adset_budget numeric, campaign_budget numeric, thumbnail_url text,
+  currency text, result_type text,
+  spend numeric, impressions bigint, reach_daily_sum bigint, clicks bigint, link_clicks bigint,
+  messages bigint, leads bigint, results bigint, days int, first_date date, last_date date
+)
+language sql stable security invoker set search_path = public as $$
+  select i.ad_id,
+         max(coalesce(a.ad_name, i.ad_name)), max(i.adset_id), max(coalesce(a.adset_name, i.adset_name)),
+         max(i.campaign_id), max(coalesce(a.campaign_name, i.campaign_name)), max(i.objective),
+         max(a.status), max(a.adset_status), max(a.campaign_status),
+         max(a.adset_budget), max(a.campaign_budget), max(a.thumbnail_url),
+         max(i.currency), max(i.result_type),
+         sum(i.spend), sum(i.impressions)::bigint, sum(i.reach)::bigint, sum(i.clicks)::bigint,
+         sum(i.link_clicks)::bigint, sum(i.messages)::bigint, sum(i.leads)::bigint, sum(i.results)::bigint,
+         count(*)::int, min(i.date), max(i.date)
+  from public.meta_ads_insights i
+  left join public.meta_ads a on a.ad_id = i.ad_id
+  where i.date between p_from and p_to
+  group by i.ad_id
+$$;
+
+-- tren harian untuk satu periode
+create or replace function public.meta_ads_daily(p_from date, p_to date)
+returns table (date date, spend numeric, impressions bigint, link_clicks bigint, messages bigint, leads bigint, results bigint)
+language sql stable security invoker set search_path = public as $$
+  select i.date, sum(i.spend), sum(i.impressions)::bigint, sum(i.link_clicks)::bigint,
+         sum(i.messages)::bigint, sum(i.leads)::bigint, sum(i.results)::bigint
+  from public.meta_ads_insights i
+  where i.date between p_from and p_to
+  group by i.date order by i.date
+$$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['meta_ads_insights','meta_ads','meta_sync_runs'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('revoke insert, update, delete, truncate on public.%I from authenticated', t);
+    execute format('drop policy if exists "admin membaca" on public.%I', t);
+    execute format('create policy "admin membaca" on public.%I for select to authenticated using (public.is_admin())', t);
+  end loop;
+end $$;
+revoke all on function public.meta_ads_by_ad(date, date), public.meta_ads_daily(date, date) from public, anon;
+grant execute on function public.meta_ads_by_ad(date, date), public.meta_ads_daily(date, date) to authenticated;

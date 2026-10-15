@@ -12,6 +12,7 @@ import './pages/freelancer.js';
 import './pages/paket.js';
 import './pages/menu.js';
 import './pages/kas.js';
+import './pages/ads.js';
 import './pages/calendar.js';
 import './pages/activity.js';
 import { initInvoice } from './pages/detail.js';

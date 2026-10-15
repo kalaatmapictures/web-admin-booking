@@ -89,14 +89,14 @@ export const dpPercent = () => Number(S.catalog?.settings?.dpPercent) || 40;
 /* =====================================================================
    DATA LAYER
    ===================================================================== */
-async function token(){
+export async function authToken(){
   const { data:{ session } } = await sb.auth.getSession();   // diperbarui otomatis oleh supabase-js
   return session?.access_token || SUPABASE_ANON_KEY;
 }
 export async function api(path, {method='GET', body, prefer}={}){
   const h = {
     'apikey': SUPABASE_ANON_KEY,
-    'Authorization': 'Bearer ' + await token(),
+    'Authorization': 'Bearer ' + await authToken(),
     'Content-Type': 'application/json'
   };
   if(prefer) h.Prefer = prefer;
@@ -361,7 +361,8 @@ const ICONS = {
   menu:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 8h10M7 12h10M7 16h6"/>',
   kas:'<rect x="2" y="6" width="20" height="13" rx="3"/><path d="M2 11h20"/><circle cx="17" cy="15" r="1.4"/>',
   calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 11h18"/><circle cx="8.5" cy="15.5" r="1.2"/><circle cx="12" cy="15.5" r="1.2"/>',
-  activity:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  activity:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  ads:'<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>'
 };
 export const PAGES = [
   {id:'dashboard',  label:'Dashboard', title:'Dashboard'},
@@ -373,6 +374,7 @@ export const PAGES = [
   {id:'paket',      label:'Paket',     title:'Paket & Harga'},
   {id:'menu',       label:'Menu',      title:'Menu Landing Page'},
   {id:'kas',        label:'Keuangan',  title:'Keuangan / Kas'},
+  {id:'ads',        label:'Meta Ads',  title:'Performa Meta Ads'},
   {id:'calendar',   label:'Kalender',  title:'Kalender'},
   {id:'activity',   label:'Aktivitas', title:'Log Aktivitas'}
 ];
@@ -490,6 +492,7 @@ export const F = {
   lead:    {date:'all', custom:{}, sort:'newest'},
   client:  {cat:'ALL', from:null, to:null, monthLabel:null, sort:'newest'},
   kas:     {from:null, to:null, monthLabel:null, cat:'ALL', init:false},
-  activity:{q:'', action:'', entity:''}
+  activity:{q:'', action:'', entity:''},
+  ads:     {date:'last7', custom:{}, level:'campaign', sort:'spend', metric:'spend'}
 };
 window.F = F;
