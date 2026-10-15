@@ -3,10 +3,11 @@
    (status NEW) otomatis muncul di kolom BOOKING.
    ===================================================================== */
 import { $, $$, S, F, RENDER, rp, esc, today, inRange, fmtDate, initials, toast,
-         openModal, closeModal, saveBooking, crewBadge } from '../core.js';
+         openModal, closeModal, saveBooking, crewBadge, searchBox, bindSearch, bookingMatch } from '../core.js';
 import { STAGES, stageOf, stageIx, catGroups, catGroup, PAY_LABELS, payLabel, MANUAL_LABELS, labelChips } from '../stages.js';
 import { calLabel, dateButton, bindDateButton } from '../datepicker.js';
 import { bookingDrawer } from './detail.js';
+import { renderTasks, tasksOf } from './tasks.js';
 
 const JB = { view:'card', drag:null, sort:'nearest', cat:'ALL', from:null, to:null, monthLabel:null };
 
@@ -44,6 +45,14 @@ async function moveStage(id, target){
   RENDER.joblist();
 }
 
+/* progres task after event di kartu booking, mis. "Task 1/3" */
+const taskChip = b => {
+  const list = tasksOf(b.id);
+  if(!list.length) return '';
+  const done = list.filter(t => t.status === 'DONE').length;
+  return `<span class="tk-chip ${done === list.length ? 'ok' : ''}" title="Task after event selesai">Task ${done}/${list.length}</span>`;
+};
+
 function jbCard(b){
   const st = stageOf(b), i = stageIx(st);
   const crew = [
@@ -61,7 +70,7 @@ function jbCard(b){
       ${b.needs_attention ? '<span class="mi" style="color:var(--err)">⚠</span>' : ''}
       <span class="tot">${rp(b.total_invoice)}</span>
     </div>
-    <div class="jb-crew">${crew}</div>
+    <div class="jb-crew">${crew}${taskChip(b)}</div>
     <div class="jb-foot">
       <button data-jbmove="${b.id}" data-dir="-1" ${i<=0?'disabled':''} title="Pindah ke kiri">‹</button>
       <button data-jbmove="${b.id}" data-dir="1" ${i>=STAGES.length-1?'disabled':''} title="Pindah ke kanan">›</button>
@@ -72,15 +81,26 @@ function jbCard(b){
 }
 
 RENDER.joblist = () => {
+  const tab = F.joblist.tab;
+  const tabs = `<div class="fl-tabs">
+      <button class="${tab === 'board' ? 'on' : ''}" data-jbtab="board">Papan Booking</button>
+      <button class="${tab === 'tasks' ? 'on' : ''}" data-jbtab="tasks">Task After Event${(S.data.postTasks || []).filter(t => t.status !== 'DONE').length
+        ? ` <span class="fl-n2">${S.data.postTasks.filter(t => t.status !== 'DONE').length}</span>` : ''}</button>
+    </div>`;
+  const bindTabs = () => $$('[data-jbtab]').forEach(b => b.onclick = () => { F.joblist.tab = b.dataset.jbtab; RENDER.joblist(); });
+  if(tab === 'tasks'){ renderTasks(tabs); bindTabs(); return; }
+
   const cat = catGroup(JB.cat); JB.cat = cat.id;
   const all = S.data.bookings.filter(b =>
     stageOf(b) &&
     (!cat.services || cat.services.includes(b.service)) &&
-    inRange(b.session_date, {from: JB.from, to: JB.to}));
+    inRange(b.session_date, {from: JB.from, to: JB.to}) &&
+    (!JB.q || bookingMatch(b, JB.q)));
 
   const cancelled = S.data.bookings.filter(b => b.status === 'CANCELLED').length;
   const bits = [`${all.length} kartu di papan`];
   if(JB.cat !== 'ALL') bits.push(cat.label);
+  if(JB.q) bits.push(`cari "${JB.q}"`);
   if(JB.from || JB.to) bits.push(calLabel(JB.from, JB.to, JB.monthLabel));
   if(cancelled) bits.push(`${cancelled} dibatalkan (tidak ditampilkan)`);
   $('#pgSub').textContent = bits.join(' · ');
@@ -101,24 +121,25 @@ RENDER.joblist = () => {
   const payCards = PAY_LABELS.map(p => `<div class="card kpi jb-ov">
       <div class="lbl">${p.text}</div><div class="val">${all.filter(b => payLabel(b)?.id === p.id).length}</div><div class="cap">kartu</div>
     </div>`).join('');
-  const overview = `
+  const overview = `${tabs}
     <div class="grid jb-ov-grid">${stageCards}</div>
     <div class="grid g3" style="margin-top:12px">${payCards}</div>
     <div class="sec-h"><h3>Papan</h3></div>`;
 
   const toggle = `<div class="jb-bar">
+      ${searchBox('jbQ', JB, 'Cari client, paket, crew, WA…')}
       <div class="chips">
         <button class="chip ${JB.view==='card'?'on':''}" data-jbview="card">Papan Kartu</button>
         <button class="chip ${JB.view==='list'?'on':''}" data-jbview="list">Daftar</button>
       </div>
-      <div class="chips">
-        ${catGroups().map(c => `<button class="chip alt ${JB.cat===c.id?'on':''}" data-jbcat="${esc(c.id)}">${esc(c.label)}</button>`).join('')}
-      </div>
-      <div class="chips" style="margin-left:auto">
-        ${dateButton('jbDate', JB)}
-        <button class="chip alt ${JB.sort==='nearest'?'on':''}" data-jbsort="nearest">Terdekat</button>
-        <button class="chip alt ${JB.sort==='farthest'?'on':''}" data-jbsort="farthest">Terjauh</button>
-      </div>
+      <label class="selchip"><span>Kategori</span><select id="jbCat" aria-label="Kategori">
+          ${catGroups().map(c => `<option value="${esc(c.id)}" ${JB.cat===c.id?'selected':''}>${esc(c.label)}</option>`).join('')}
+        </select></label>
+      <div class="chips">${dateButton('jbDate', JB)}</div>
+      <label class="selchip"><span>Urutkan</span><select id="jbSort" aria-label="Urutkan">
+        <option value="nearest" ${JB.sort==='nearest'?'selected':''}>Terdekat</option>
+        <option value="farthest" ${JB.sort==='farthest'?'selected':''}>Terjauh</option>
+      </select></label>
     </div>`;
 
   if(JB.view === 'card'){
@@ -162,9 +183,11 @@ RENDER.joblist = () => {
     }).join('');
   }
 
+  bindTabs();
+  bindSearch('jbQ', JB, RENDER.joblist);
   $$('[data-jbview]').forEach(b => b.onclick = () => { JB.view = b.dataset.jbview; RENDER.joblist(); });
-  $$('[data-jbsort]').forEach(b => b.onclick = () => { JB.sort = b.dataset.jbsort; RENDER.joblist(); });
-  $$('[data-jbcat]').forEach(b => b.onclick = () => { JB.cat = b.dataset.jbcat; RENDER.joblist(); });
+  $('#jbSort').onchange = e => { JB.sort = e.target.value; RENDER.joblist(); };
+  $('#jbCat').onchange = e => { JB.cat = e.target.value; RENDER.joblist(); };
   bindDateButton('jbDate', JB, RENDER.joblist);
   $$('[data-jbjump]').forEach(b => b.onclick = () => {
     document.querySelector(`[data-stage="${b.dataset.jbjump}"]`)?.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});

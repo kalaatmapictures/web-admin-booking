@@ -75,6 +75,55 @@ create table if not exists public.freelancers (
   gear       text[] not null default '{}',
   created_at timestamptz not null default now()
 );
+-- kolom rate/rate_type di atas tidak dipakai lagi; rate kini per event di freelancer_rates
+alter table public.freelancers add column if not exists instagram text;   -- @username (tombol Instagram di kartu)
+alter table public.freelancers add column if not exists based_in text;    -- kota domisili (Detail freelancer)
+
+/* Daftar pilihan yang bisa diatur admin: jenis rate (Per Project, Per Jam, …)
+   dan event (Wedding, Graduation, …). */
+create table if not exists public.freelancer_options (
+  id         uuid primary key default gen_random_uuid(),
+  kind       text not null check (kind in ('RATE_TYPE','EVENT')),
+  label      text not null check (length(trim(label)) > 0),
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique (kind, label)
+);
+insert into public.freelancer_options (kind, label, sort_order) values
+  ('RATE_TYPE','Per Project',1), ('RATE_TYPE','Per Jam',2), ('RATE_TYPE','Per Hari',3),
+  ('EVENT','Umum',0), ('EVENT','Wedding',1), ('EVENT','Prewedding',2), ('EVENT','Engagement',3),
+  ('EVENT','Graduation',4), ('EVENT','Family',5), ('EVENT','Maternity',6)
+on conflict (kind, label) do nothing;
+
+/* Satu freelancer bisa punya beberapa rate, berbeda per event.
+   event & rate_type disimpan sebagai teks label supaya rate lama tetap
+   terbaca walau pilihannya dihapus. Peran (role) per rate membuat satu
+   freelancer bisa ditugaskan di beberapa peran. */
+create table if not exists public.freelancer_rates (
+  id            uuid primary key default gen_random_uuid(),
+  freelancer_id uuid not null references public.freelancers (id) on delete cascade,
+  event         text not null,
+  rate_type     text not null,
+  rate          bigint not null default 0 check (rate >= 0),
+  note          text,
+  created_at    timestamptz not null default now()
+);
+create index if not exists freelancer_rates_fl_idx on public.freelancer_rates (freelancer_id);
+-- satu freelancer bisa memegang beberapa peran; rate dicatat per peran
+alter table public.freelancer_rates add column if not exists role text
+  check (role in ('PHOTOGRAPHER','VIDEOGRAPHER','EDITOR','ASSISTANT','WCC','OTHER'));
+update public.freelancer_rates r set role = f.role
+  from public.freelancers f where f.id = r.freelancer_id and r.role is null;
+
+-- pindahkan rate lama (satu rate per freelancer) menjadi rate event "Umum", sekali saja
+insert into public.freelancer_rates (freelancer_id, event, rate_type, rate)
+select f.id, 'Umum',
+       case f.rate_type when 'PER_HOUR' then 'Per Jam' when 'PER_DAY' then 'Per Hari' else 'Per Project' end,
+       f.rate
+  from public.freelancers f
+ where f.rate > 0
+   and not exists (select 1 from public.freelancer_rates r where r.freelancer_id = f.id);
+update public.freelancers set rate = 0 where rate > 0;
 
 -- ---------------------------------------------------------------------
 -- BOOKING — dibuat pelanggan dari landing page, dikelola di BMS
@@ -86,7 +135,7 @@ create table if not exists public.bookings (
   created_at           timestamptz not null default now(),
   updated_at           timestamptz not null default now(),
   booking_id           text not null unique,
-  source               text not null default 'website',
+  source               text not null default 'website',     -- website | admin (manual) | import (data lama)
   status               text not null default 'NEW'
                        check (status in ('NEW','CONTACTED','WAITING_DP','CONFIRMED','BOOKED','EVENT_DONE','DELIVERED','COMPLETED','CANCELLED')),
 
@@ -101,13 +150,13 @@ create table if not exists public.bookings (
   add_on_price         bigint not null default 0,
   number_of_people     integer,
   session_date         date not null,
-  session_time         time not null,
+  session_time         time,                                -- boleh kosong (data lama / booking manual)
   session_end_time     time,
-  location             text not null,
+  location             text,
   map_link             text,
   latitude             double precision,
   longitude            double precision,
-  whatsapp             text not null,
+  whatsapp             text,
   notes                text,
   estimated_total      bigint,                              -- snapshot estimasi yang dilihat pelanggan
   estimated_dp         bigint,
@@ -282,6 +331,50 @@ create trigger payments_kas after insert on public.payments
   for each row execute function public.payments_to_kas();
 
 -- ---------------------------------------------------------------------
+-- TASK AFTER EVENT — pekerjaan pasca-event per booking (edit foto, edit
+-- video, layout album, …), dikelola di tab Joblist → Task After Event
+-- ---------------------------------------------------------------------
+create table if not exists public.post_tasks (
+  id          uuid primary key default gen_random_uuid(),
+  booking_id  uuid not null references public.bookings (id) on delete cascade,
+  title       text not null check (length(trim(title)) > 0),
+  task_type   text,
+  assignee_id uuid references public.freelancers (id) on delete set null,
+  status      text not null default 'TODO' check (status in ('TODO','IN_PROGRESS','REVIEW','DONE')),
+  due_date    date,
+  notes       text,
+  done_at     timestamptz,
+  created_at  timestamptz not null default now()
+);
+create index if not exists post_tasks_booking_idx on public.post_tasks (booking_id);
+
+-- ---------------------------------------------------------------------
+-- HUTANG PIUTANG — tab Keuangan → Hutang Piutang. Bisa dicicil
+-- (debt_payments); pembayaran bisa ikut dicatat di transactions (kas).
+-- ---------------------------------------------------------------------
+create table if not exists public.debts (
+  id          uuid primary key default gen_random_uuid(),
+  kind        text not null check (kind in ('PAYABLE','RECEIVABLE')),   -- hutang / piutang
+  party       text not null check (length(trim(party)) > 0),
+  description text,
+  amount      bigint not null check (amount > 0),
+  issued_on   date not null default public.today_wib(),
+  due_date    date,
+  notes       text,
+  created_at  timestamptz not null default now()
+);
+create table if not exists public.debt_payments (
+  id             uuid primary key default gen_random_uuid(),
+  debt_id        uuid not null references public.debts (id) on delete cascade,
+  amount         bigint not null check (amount > 0),
+  paid_on        date not null default public.today_wib(),
+  method         text,
+  transaction_id uuid references public.transactions (id) on delete set null,
+  created_at     timestamptz not null default now()
+);
+create index if not exists debt_payments_debt_idx on public.debt_payments (debt_id);
+
+-- ---------------------------------------------------------------------
 -- LEAD & CLIENT
 -- ---------------------------------------------------------------------
 create table if not exists public.leads (
@@ -291,13 +384,25 @@ create table if not exists public.leads (
   email           text,
   category        text,
   source          text,
-  status          text not null default 'NEW'
-                  check (status in ('NEW','CONTACTED','QUALIFIED','NEGOTIATION','WON','LOST')),
+  status          text not null default 'COLD'
+                  check (status in ('COLD','WARM','HOT')),      -- suhu minat calon client
   follow_up_date  date,
   estimated_value bigint not null default 0,
   notes           text,
   created_at      timestamptz not null default now()
 );
+
+-- status lama (NEW…LOST) → COLD/WARM/HOT, aman dijalankan ulang
+alter table public.leads drop constraint if exists leads_status_check;
+update public.leads set status = case status when 'QUALIFIED' then 'WARM' when 'NEGOTIATION' then 'HOT'
+  when 'WON' then 'HOT' when 'HOT' then 'HOT' when 'WARM' then 'WARM' else 'COLD' end
+ where status not in ('COLD','WARM','HOT');
+alter table public.leads alter column status set default 'COLD';
+alter table public.leads add constraint leads_status_check check (status in ('COLD','WARM','HOT'));
+
+-- lead otomatis dari WhatsApp (program Kalaatma WA, lihat wa-bridge/README.md)
+alter table public.leads add column if not exists wa_jid text, add column if not exists last_contact_at timestamptz;
+create unique index if not exists leads_wa_jid_key on public.leads (wa_jid) where wa_jid is not null;
 
 create table if not exists public.clients (
   id                uuid primary key default gen_random_uuid(),
@@ -375,13 +480,14 @@ cross join lateral (select c2.subtotal - b.discount as total) c3
 cross join lateral (select (b.payment_due_date is not null and b.payment_due_date < public.today_wib()
                             and c1.paid < c3.total) as overdue) c4;
 
+-- kolom ditulis eksplisit: kolom baru ditambahkan di akhir supaya bisa create or replace
 create or replace view public.v_leads_board with (security_invoker = true) as
-select l.*,
-  case when l.status in ('WON','LOST') then 'CLOSED'
-       when l.follow_up_date is null then 'NONE'
+select l.id, l.name, l.whatsapp, l.email, l.category, l.source, l.status, l.follow_up_date, l.estimated_value, l.notes, l.created_at,
+  case when l.follow_up_date is null then 'NONE'
        when l.follow_up_date < public.today_wib() then 'OVERDUE'
        when l.follow_up_date = public.today_wib() then 'TODAY'
-       else 'SAFE' end as follow_up_state
+       else 'SAFE' end as follow_up_state,
+  l.wa_jid, l.last_contact_at
 from public.leads l;
 
 -- ---------------------------------------------------------------------
@@ -391,7 +497,7 @@ from public.leads l;
 do $$
 declare t text;
 begin
-  foreach t in array array['admins','package_costs','freelancers','payments','crew_fees','transactions','leads','clients'] loop
+  foreach t in array array['admins','package_costs','freelancers','freelancer_options','freelancer_rates','post_tasks','debts','debt_payments','payments','crew_fees','transactions','leads','clients'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon', t);
     execute format('drop policy if exists "admin penuh" on public.%I', t);
@@ -406,6 +512,9 @@ grant select on public.app_config to anon;
 drop policy if exists "publik membaca katalog" on public.app_config;
 create policy "publik membaca katalog" on public.app_config
   for select to anon, authenticated using (key = 'catalog');
+drop policy if exists "publik membaca konten" on public.app_config;
+create policy "publik membaca konten" on public.app_config
+  for select to anon, authenticated using (key = 'content');
 drop policy if exists "admin menulis konfigurasi" on public.app_config;
 create policy "admin menulis konfigurasi" on public.app_config
   for all to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -440,6 +549,189 @@ create policy "admin menambah log" on public.admin_activity
 
 revoke all on public.v_bookings_board, public.v_leads_board from anon;
 grant select on public.v_bookings_board, public.v_leads_board to authenticated;
+
+-- konten landing: foto disimpan di Storage bucket publik 'landing' (Menu → Konten)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('landing', 'landing', true, 5242880, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+drop policy if exists "admin upload foto landing" on storage.objects;
+create policy "admin upload foto landing" on storage.objects
+  for insert to authenticated with check (bucket_id = 'landing' and public.is_admin());
+drop policy if exists "admin ubah foto landing" on storage.objects;
+create policy "admin ubah foto landing" on storage.objects
+  for update to authenticated using (bucket_id = 'landing' and public.is_admin());
+drop policy if exists "admin hapus foto landing" on storage.objects;
+create policy "admin hapus foto landing" on storage.objects
+  for delete to authenticated using (bucket_id = 'landing' and public.is_admin());
+
+-- =====================================================================
+-- SOSMED — jadwal & posting Instagram (otomatis) + TikTok (manual).
+-- Edge Function: supabase/functions/social-publish (verify_jwt = false;
+-- autentikasi sendiri: JWT admin, atau header x-cron-secret dari pg_cron).
+-- =====================================================================
+create table if not exists public.social_posts (
+  id           uuid primary key default gen_random_uuid(),
+  kind         text not null default 'photo' check (kind in ('photo','carousel','reel')),
+  platforms    text[] not null default '{instagram}',
+  caption      text not null default '',
+  media        jsonb not null default '[]'::jsonb,          -- [{url, type:'image'|'video', path, w, h}]
+  scheduled_at timestamptz,
+  status       text not null default 'draft'
+               check (status in ('draft','scheduled','publishing','manual','published','failed')),
+  ig           jsonb not null default '{}'::jsonb,          -- {state, creation_id, children, media_id, permalink, error, attempts}
+  tiktok       jsonb not null default '{}'::jsonb,          -- {state:'ready'|'posted'}
+  note         text,
+  locked_until timestamptz,                                 -- kunci proses agar tidak posting ganda
+  created_by   uuid default auth.uid() references auth.users (id) on delete set null,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+create index if not exists social_posts_due on public.social_posts (status, scheduled_at);
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at := clock_timestamp(); return new; end $$;
+drop trigger if exists social_posts_touch on public.social_posts;
+create trigger social_posts_touch before update on public.social_posts
+  for each row execute function public.touch_updated_at();
+alter table public.social_posts enable row level security;
+revoke all on public.social_posts from anon;
+drop policy if exists "admin kelola posting sosmed" on public.social_posts;
+create policy "admin kelola posting sosmed" on public.social_posts
+  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- token platform: TIDAK bisa dibaca dari browser (tanpa policy), hanya
+-- ditulis lewat RPC dan dibaca Edge Function (service role).
+-- Baris '_cron' berisi rahasia acak untuk panggilan pg_cron → Edge Function.
+create table if not exists public.social_credentials (
+  platform     text primary key,
+  account_id   text not null,
+  access_token text not null,
+  updated_at   timestamptz not null default now(),
+  updated_by   uuid default auth.uid()
+);
+alter table public.social_credentials enable row level security;
+revoke all on public.social_credentials from anon, authenticated;
+
+create or replace function public.save_social_credentials(p_platform text, p_account_id text, p_token text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'hanya admin'; end if;
+  if p_platform not in ('instagram','tiktok') then raise exception 'platform tidak dikenal'; end if;
+  insert into public.social_credentials (platform, account_id, access_token, updated_at, updated_by)
+  values (p_platform, trim(p_account_id), trim(p_token), now(), auth.uid())
+  on conflict (platform) do update set account_id = excluded.account_id,
+    access_token = excluded.access_token, updated_at = now(), updated_by = auth.uid();
+end $$;
+revoke all on function public.save_social_credentials(text, text, text) from public, anon;
+grant execute on function public.save_social_credentials(text, text, text) to authenticated;
+
+create or replace function public.social_credential_info()
+returns table (platform text, account_id text, updated_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select platform, account_id, updated_at from public.social_credentials where public.is_admin();
+$$;
+revoke all on function public.social_credential_info() from public, anon;
+grant execute on function public.social_credential_info() to authenticated;
+
+-- media posting (publik agar Instagram bisa mengambilnya)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('social', 'social', true, 52428800, array['image/jpeg','video/mp4','video/quicktime'])
+on conflict (id) do nothing;
+drop policy if exists "admin upload media sosmed" on storage.objects;
+create policy "admin upload media sosmed" on storage.objects
+  for insert to authenticated with check (bucket_id = 'social' and public.is_admin());
+drop policy if exists "admin ubah media sosmed" on storage.objects;
+create policy "admin ubah media sosmed" on storage.objects
+  for update to authenticated using (bucket_id = 'social' and public.is_admin());
+drop policy if exists "admin hapus media sosmed" on storage.objects;
+create policy "admin hapus media sosmed" on storage.objects
+  for delete to authenticated using (bucket_id = 'social' and public.is_admin());
+
+-- penjadwal: tiap 2 menit memanggil Edge Function bila ada posting jatuh tempo
+create extension if not exists pg_net with schema extensions;
+create extension if not exists pg_cron with schema pg_catalog;
+insert into public.social_credentials (platform, account_id, access_token)
+values ('_cron', 'cron', encode(extensions.gen_random_bytes(24), 'hex'))
+on conflict (platform) do nothing;
+create or replace function public.social_publish_tick()
+returns void language plpgsql security definer set search_path = public, extensions as $$
+declare secret text;
+begin
+  -- panggil fungsi bila ada posting jatuh tempo, atau token Instagram Login perlu diperpanjang
+  if not exists (select 1 from public.social_posts
+                 where (status = 'scheduled' and scheduled_at <= now()) or status = 'publishing')
+     and not exists (select 1 from public.social_credentials
+                     where platform = 'instagram' and access_token not like 'EAA%'
+                       and updated_at < now() - interval '30 days') then
+    return;
+  end if;
+  select access_token into secret from public.social_credentials where platform = '_cron';
+  perform net.http_post(
+    url := 'https://lkdjvkbrrfsyttlxlsal.supabase.co/functions/v1/social-publish',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', secret),
+    body := '{"action":"tick"}'::jsonb,
+    timeout_milliseconds := 60000
+  );
+end $$;
+revoke all on function public.social_publish_tick() from public, anon, authenticated;
+select cron.schedule('social-publish-tick', '*/2 * * * *', 'select public.social_publish_tick()');
+
+-- cache analisa Instagram (diisi Edge Function social-publish {action:'insights'}, 30 menit)
+create table if not exists public.social_insights_cache (
+  key        text primary key,          -- 'ig:7' | 'ig:30' | 'ig:90'
+  data       jsonb not null,
+  fetched_at timestamptz not null default now()
+);
+alter table public.social_insights_cache enable row level security;
+revoke all on public.social_insights_cache from anon, authenticated;
+
+-- booking manual & impor data lama (kolom jam/lokasi/WA boleh kosong untuk data historis)
+alter table public.bookings alter column session_time drop not null;
+alter table public.bookings alter column location drop not null;
+alter table public.bookings alter column whatsapp drop not null;
+create index if not exists bookings_source_idx on public.bookings (source);
+
+-- laporan keuangan: transaksi tanpa booking bisa diberi project & jenis layanan
+alter table public.transactions add column if not exists project text;        -- nama project bila tidak ditautkan ke booking
+alter table public.transactions add column if not exists service text;        -- jenis layanan / 'Operasional Umum'
+alter table public.transactions add column if not exists import_batch text;   -- penanda data hasil impor
+create index if not exists transactions_import_idx on public.transactions (import_batch);
+
+-- ---------------------------------------------------------------------
+-- WHATSAPP → LEAD OTOMATIS — program Kalaatma WA (whatsmeow) di laptop admin
+-- mengirim status/QR/chat ke Edge Function wa-bridge (header x-bridge-secret).
+-- Admin hanya membaca wa_bridge dan mengirim perintah lewat kolom command.
+-- ---------------------------------------------------------------------
+create table if not exists public.wa_bridge (
+  id int primary key default 1 check (id = 1),
+  status text not null default 'offline',             -- offline | starting | qr | qr_expired | connected | disconnected | logged_out
+  qr text, qr_at timestamptz,                          -- QR aktif (PNG data URL)
+  phone text, push_name text, device text, version text,
+  last_seen timestamptz,                               -- heartbeat terakhir dari laptop
+  last_message_at timestamptz,
+  leads_created int not null default 0,
+  command text check (command in ('pair','logout')), command_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+insert into public.wa_bridge (id) values (1) on conflict (id) do nothing;
+alter table public.wa_bridge enable row level security;
+drop policy if exists "admin baca wa_bridge" on public.wa_bridge;
+create policy "admin baca wa_bridge" on public.wa_bridge for select to authenticated using (public.is_admin());
+drop policy if exists "admin perintah wa_bridge" on public.wa_bridge;
+create policy "admin perintah wa_bridge" on public.wa_bridge for update to authenticated using (public.is_admin()) with check (public.is_admin());
+revoke all on public.wa_bridge from anon, authenticated;
+grant select on public.wa_bridge to authenticated;
+grant update (command, command_at) on public.wa_bridge to authenticated;
+
+-- kunci program laptop: tanpa policy → hanya service role (Edge Function) yang bisa membaca
+create table if not exists public.wa_bridge_secret (
+  id int primary key default 1 check (id = 1),
+  secret text not null default encode(extensions.gen_random_bytes(24), 'hex')
+);
+insert into public.wa_bridge_secret (id) values (1) on conflict (id) do nothing;
+alter table public.wa_bridge_secret enable row level security;
+revoke all on public.wa_bridge_secret from anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- META ADS — data performa iklan, ditarik dari Meta Marketing API oleh

@@ -1,12 +1,31 @@
 /* KEUANGAN / KAS (brief #1C, #9)
    Pembayaran yang dicatat di detail booking otomatis masuk ke kas. */
 import { $, $$, S, F, RENDER, rp, esc, today, inRange, fmtDate, toast, money, moneyVal,
-         openModal, closeModal, saveRow, insertRow, deleteRow, empty } from '../core.js';
+         openModal, closeModal, saveRow, insertRow, deleteRow, empty, searchBox, bindSearch, matchQuery } from '../core.js';
 import { catGroups, catGroup, stageOf } from '../stages.js';
 import { calLabel, dateButton, bindDateButton, MON_FULL, dISO } from '../datepicker.js';
+import { renderDebts } from './debts.js';
+import { renderSheet } from './kas-sheet.js';
+import { renderReport, JENIS_LIST, KATEGORI_KELUAR, UMUM } from './kas-report.js';
+
+const VIEW_KEY = 'kalaatma-kas-view';
+const getView = () => { try{ return localStorage.getItem(VIEW_KEY) === 'sheet' ? 'sheet' : 'list'; }catch(_){ return 'list'; } };
 
 RENDER.kas = () => {
   const f = F.kas;
+  const open = (S.data.debts || []).filter(d => d.amount > (S.data.debtPayments || []).filter(p => p.debt_id === d.id).reduce((n, p) => n + p.amount, 0)).length;
+  const tabs = `<div class="fl-tabs">
+      <button class="${f.tab === 'kas' ? 'on' : ''}" data-kastab="kas">Kas</button>
+      <button class="${f.tab === 'report' ? 'on' : ''}" data-kastab="report">Laporan</button>
+      <button class="${f.tab === 'debt' ? 'on' : ''}" data-kastab="debt">Hutang Piutang${open ? ` <span class="fl-n2">${open}</span>` : ''}</button>
+    </div>`;
+  const bindTabs = () => $$('[data-kastab]').forEach(b => b.onclick = () => { f.tab = b.dataset.kastab; RENDER.kas(); });
+  if(f.tab === 'debt'){ renderDebts(tabs); bindTabs(); return; }
+  if(f.tab === 'report'){
+    $('#pgSub').textContent = 'Laporan keuangan bisnis';
+    $('#page').innerHTML = tabs + '<div id="kasReport"></div>';
+    bindTabs(); renderReport($('#kasReport'), RENDER.kas); return;
+  }
   if(!f.init){
     f.init = true;
     const d = new Date();
@@ -26,17 +45,21 @@ RENDER.kas = () => {
   let rows = cat.services
     ? byDate.filter(t => { const b = bookingOf(t); return b && cat.services.includes(b.service); })
     : byDate;
+  if(f.q) rows = rows.filter(t => { const b = bookingOf(t);
+    return matchQuery(f.q, [t.description, t.category, t.kind === 'IN' ? 'pemasukan' : 'pengeluaran', String(t.amount),
+      b?.client_display, b?.service, b?.booking_id, b?.invoice_number]); });
   rows = [...rows].sort((a,b) => b.occurred_on.localeCompare(a.occurred_on));
 
   const masuk  = rows.filter(t=>t.kind==='IN').reduce((n,t)=>n+t.amount,0);
   const keluar = rows.filter(t=>t.kind==='OUT').reduce((n,t)=>n+t.amount,0);
 
   const periode = calLabel(f.from, f.to, f.monthLabel);
+  const view = f.view || (f.view = getView());
   const bits = [`${rows.length} transaksi`, periode];
   if(f.cat !== 'ALL') bits.push(cat.label);
   $('#pgSub').textContent = bits.join(' · ');
 
-  $('#page').innerHTML = `
+  $('#page').innerHTML = `${tabs}
     <div class="grid g4" style="margin-bottom:14px">
       <div class="card kpi accent"><div class="lbl">Saldo periode</div><div class="val">${rp(masuk-keluar)}</div><div class="cap">pemasukan − pengeluaran</div></div>
       <div class="card kpi"><div class="lbl">Pemasukan</div><div class="val" style="color:var(--ok)">${rp(masuk)}</div><div class="cap">${rows.filter(t=>t.kind==='IN').length} transaksi</div></div>
@@ -45,9 +68,14 @@ RENDER.kas = () => {
     </div>
 
     <div class="jb-bar">
-      <div class="chips">
-        ${catGroups().map(c => `<button class="chip alt ${f.cat===c.id?'on':''}" data-kascat="${esc(c.id)}">${esc(c.label)}</button>`).join('')}
+      ${searchBox('kasQ', f, 'Cari deskripsi, client, kategori, nominal…')}
+      <div class="kas-view" role="group" aria-label="Tampilan">
+        <button class="${view === 'list' ? 'on' : ''}" data-kview="list" title="Tampilan daftar">☰ Daftar</button>
+        <button class="${view === 'sheet' ? 'on' : ''}" data-kview="sheet" title="Tampilan tabel seperti Excel">▦ Tabel</button>
       </div>
+      <label class="selchip"><span>Kategori</span><select id="kasCat" aria-label="Kategori">
+          ${catGroups().map(c => `<option value="${esc(c.id)}" ${f.cat===c.id?'selected':''}>${esc(c.label)}</option>`).join('')}
+        </select></label>
       <div class="chips" style="margin-left:auto">
         ${dateButton('kasDate', f)}
         <button class="btn sm" id="addTx">+ Catat transaksi</button>
@@ -58,7 +86,7 @@ RENDER.kas = () => {
       ? `<div class="banner" style="margin-bottom:14px">${tanpaProject} transaksi tanpa tautan booking tidak ikut ditampilkan, karena kategorinya tidak diketahui.</div>`
       : ''}
 
-    ${rows.length ? `<div class="card"><div class="tablewrap"><table class="kas-t">
+    ${view === 'sheet' ? '<div id="kasSheet"></div>' : rows.length ? `<div class="card"><div class="tablewrap"><table class="kas-t">
       <thead><tr>
         <th>Tanggal</th><th>Deskripsi</th><th>Kategori</th><th>Project</th>
         <th class="r">Pemasukan</th><th class="r">Pengeluaran</th><th class="r"></th>
@@ -89,7 +117,11 @@ RENDER.kas = () => {
       </tr></tfoot>
     </table></div></div>` : empty('Belum ada transaksi','Tidak ada transaksi yang cocok dengan filter ini.')}`;
 
-  $$('[data-kascat]').forEach(b => b.onclick = () => { f.cat = b.dataset.kascat; RENDER.kas(); });
+  bindTabs();
+  if(view === 'sheet') renderSheet($('#kasSheet'), rows, bookingOf, RENDER.kas, periode);
+  $$('[data-kview]').forEach(b => b.onclick = () => { f.view = b.dataset.kview; try{ localStorage.setItem(VIEW_KEY, f.view); }catch(_){} RENDER.kas(); });
+  bindSearch('kasQ', f, RENDER.kas);
+  $('#kasCat').onchange = e => { f.cat = e.target.value; RENDER.kas(); };
   bindDateButton('kasDate', f, RENDER.kas);
   $('#addTx').onclick = () => txForm(null);
   $$('[data-txedit]').forEach(b => b.onclick = () => txForm(S.data.transactions.find(t => t.id === b.dataset.txedit)));
@@ -112,7 +144,8 @@ function txForm(existing){
       <div class="fld money"><label>Jumlah</label><input id="txAmt" inputmode="numeric" placeholder="Rp0"></div>
     </div>
     <div class="fld" style="margin-top:11px"><label>Kategori</label>
-      <input id="txCat" placeholder="DP Booking / Fee Crew / Operasional" value="${esc(existing?.category||'')}"></div>
+      <input id="txCat" list="txCatList" placeholder="mis. Fee Crew, Editing, Iklan & Marketing" value="${esc(existing?.category||'')}">
+      <datalist id="txCatList">${[...new Set(['Pemasukan', ...KATEGORI_KELUAR, ...S.data.transactions.map(t => t.category).filter(Boolean)])].map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
     <div class="fld" style="margin-top:11px"><label>Deskripsi</label>
       <input id="txDesc" placeholder="Keterangan singkat" value="${esc(existing?.description||'')}"></div>
     <div class="fgrid two" style="margin-top:11px">
@@ -121,7 +154,14 @@ function txForm(existing){
         <select id="txBooking"><option value="">— Tanpa project —</option>
         ${linkable.map(b=>`<option value="${b.id}">${esc(b.client_display)} · ${esc(b.service)}</option>`).join('')}</select></div>
     </div>
-    <div class="tsub" style="margin-top:8px">Transaksi yang ditautkan ke project ikut terbaca saat memfilter kategori.</div>
+    <div class="fgrid two" style="margin-top:11px" id="txFree">
+      <div class="fld"><label>Nama project (tanpa booking)</label>
+        <input id="txProj" list="txProjList" placeholder="kosong = operasional umum" value="${esc(existing?.project||'')}">
+        <datalist id="txProjList">${[...new Set(S.data.transactions.map(t => t.project).filter(p => p && p !== UMUM))].map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
+      <div class="fld"><label>Jenis layanan</label>
+        <select id="txSvc"><option value="">— otomatis —</option>${JENIS_LIST.map(j => `<option ${existing?.service === j ? 'selected' : ''}>${j}</option>`).join('')}</select></div>
+    </div>
+    <div class="tsub" style="margin-top:8px">Project & jenis dipakai di tab Laporan. Transaksi yang ditautkan ke booking otomatis memakai nama client & layanan booking.</div>
     <div class="acts">
       <button class="btn soft" data-mclose>Batal</button>
       <button class="btn" id="txSave">${ed ? 'Simpan perubahan' : 'Simpan'}</button>
@@ -130,6 +170,8 @@ function txForm(existing){
   const amt = money($('#txAmt'), existing?.amount || 0);
   $('#txKind').value = existing?.kind || 'IN';
   if(existing?.booking_id) $('#txBooking').value = existing.booking_id;
+  const syncFree = () => { $('#txFree').hidden = !!$('#txBooking').value; };
+  $('#txBooking').addEventListener('change', syncFree); syncFree();
 
   $('#txSave').onclick = async () => {
     if(moneyVal(amt) <= 0) return toast('Jumlah belum diisi');
@@ -138,7 +180,9 @@ function txForm(existing){
       category: $('#txCat').value.trim() || null,
       description: $('#txDesc').value.trim() || null,
       occurred_on: $('#txDate').value,
-      booking_id: $('#txBooking').value || null
+      booking_id: $('#txBooking').value || null,
+      project: $('#txBooking').value ? null : ($('#txProj').value.trim() || null),
+      service: $('#txBooking').value ? null : ($('#txSvc').value || ($('#txProj').value.trim() ? null : UMUM))
     };
     try{
       if(ed) await saveRow('transactions', existing.id, data, 'transactions');

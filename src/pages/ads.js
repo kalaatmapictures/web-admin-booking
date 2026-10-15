@@ -1,7 +1,6 @@
 /* META ADS — performa iklan dari Meta (ditarik Edge Function meta-ads-sync).
    Hanya menampilkan data; analisa dilakukan di luar BMS. */
-import { $, $$, S, F, RENDER, rp, esc, iso, range, chipbar, customRange, empty, api, authToken, toast, fmtDate } from '../core.js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../data/supabase.js';
+import { $, $$, S, F, RENDER, rp, esc, iso, range, chipbar, customRange, empty, api, callFn, toast, fmtDate } from '../core.js';
 
 const A = S.ads = { key:null, byAd:[], daily:[], runs:[], loading:false, error:null, syncing:false };
 
@@ -45,13 +44,8 @@ async function load(p){
 async function sync(days){
   A.syncing = true; RENDER.ads();
   try{
-    const res = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/functions/v1/meta-ads-sync', {
-      method:'POST',
-      headers:{'Authorization':'Bearer ' + await authToken(), 'apikey':SUPABASE_ANON_KEY, 'Content-Type':'application/json'},
-      body: JSON.stringify({days})
-    });
-    const out = await res.json().catch(() => ({}));
-    if(!res.ok || !out.ok) throw new Error(out.error || ('HTTP ' + res.status));
+    const out = await callFn('meta-ads-sync', {days});
+    if(!out.ok) throw new Error(out.error || 'Sync gagal');
     toast(`Sync selesai · ${out.rows} baris data`);
   }catch(e){
     toast('Sync gagal: ' + (e.message === 'Failed to fetch' ? 'Edge Function meta-ads-sync belum di-deploy' : e.message));

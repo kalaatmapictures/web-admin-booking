@@ -132,3 +132,31 @@ export function bindDateButton(id, f, rerender){
     }});
   };
 }
+
+/* Filter periode ringkas: "Bulan ini" (klik lagi = semua tanggal) + "Custom" (kalender).
+   f.date ∈ 'all' | 'month' | 'custom', f.custom = {from, to, label}. */
+const CAL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>';
+export function normPeriod(f){
+  f.custom = f.custom || {};
+  if(!['month','custom'].includes(f.date) || (f.date === 'custom' && !f.custom.from && !f.custom.to)) f.date = 'all';
+}
+export const periodLabel = f => f.date === 'month' ? 'Bulan ini'
+  : f.date === 'custom' ? calLabel(f.custom.from, f.custom.to, f.custom.label) : 'Semua tanggal';
+export function periodButtons(id, f){
+  normPeriod(f);
+  return `<div class="chips">
+    <button class="chip ${f.date==='month'?'on':''}" id="${id}Month">Bulan ini</button>
+    <button class="datebtn ${f.date==='custom'?'on':''}" id="${id}Custom">${CAL_ICON}
+      ${f.date==='custom' ? calLabel(f.custom.from, f.custom.to, f.custom.label) : 'Custom'}
+      ${f.date==='custom' ? '<span class="x" data-clear>✕</span>' : ''}</button>
+  </div>`;
+}
+export function bindPeriod(id, f, rerender){
+  $('#' + id + 'Month').onclick = () => { f.date = f.date === 'month' ? 'all' : 'month'; rerender(); };
+  $('#' + id + 'Custom').onclick = e => {
+    if(e.target.hasAttribute('data-clear')){ f.date = 'all'; f.custom = {}; return rerender(); }
+    openCalendar({from:f.custom.from, to:f.custom.to, label:f.custom.label, onApply: c => {
+      f.custom = c; f.date = (c.from || c.to) ? 'custom' : 'all'; rerender();
+    }});
+  };
+}

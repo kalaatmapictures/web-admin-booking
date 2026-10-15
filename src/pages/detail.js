@@ -4,7 +4,9 @@
    ===================================================================== */
 import { $, $$, S, F, RENDER, rp, esc, today, fmtDate, timeRange, initials, toast, money, moneyVal,
          openDrawer, openModal, closeModal, saveBooking, addPayment, crewBadge, payBadge,
-         BOOKING_STATUSES, dpPercent } from '../core.js';
+         BOOKING_STATUSES, dpPercent, closeDrawer, deleteBooking, go } from '../core.js';
+import { hasRole, rateFor } from '../freelancers.js';
+import { taskForm, taskSummary } from './tasks.js';
 
 const rerender = () => RENDER[S.page]();
 /* jalankan aksi tulis; tampilkan galat tanpa membuat UI macet */
@@ -66,13 +68,49 @@ function clientWaUrl(b){
   return `https://wa.me/${waNumber(b.whatsapp)}?text=${encodeURIComponent(msg)}`;
 }
 
+/* Hapus booking (dari drawer atau tabel Booking). Pembayaran & catatan kas
+   dari pembayaran itu ikut terhapus, jadi disebutkan jelas di konfirmasi. */
+export function confirmDeleteBooking(id){
+  const b = S.data.bookings.find(x => x.id === id);
+  if(!b) return;
+  const pays = S.data.payments.filter(p => p.booking_id === id);
+  const paid = pays.reduce((n, p) => n + p.amount, 0);
+  openModal(`<div class="warnicon" style="background:var(--err-bg);color:var(--err)">🗑</div>
+    <h3>Hapus booking ${esc(b.client_display)}?</h3>
+    <p>${esc(b.booking_id)} · ${esc(b.service)} · ${fmtDate(b.session_date)}</p>
+    ${pays.length ? `<div class="banner" style="margin:14px 0 0">${pays.length} pembayaran (${rp(paid)}) dan catatan kas-nya akan ikut terhapus.</div>` : ''}
+    <p style="margin-top:12px">Booking dihapus permanen dan tidak bisa dikembalikan. Kalau client hanya batal dan datanya masih ingin disimpan, ubah statusnya ke <b>CANCELLED</b> saja.</p>
+    <div class="acts">
+      <button class="btn soft" data-mclose>Batal</button>
+      ${b.status !== 'CANCELLED' ? '<button class="btn soft" id="dbCancel">Jadikan CANCELLED</button>' : ''}
+      <button class="btn danger" id="dbDelete">Hapus permanen</button>
+    </div>`);
+  const cancel = $('#dbCancel');
+  if(cancel) cancel.onclick = async () => {
+    cancel.disabled = true;
+    const ok = await safely(() => saveBooking(id, {status:'CANCELLED'}));
+    closeModal(); if(ok) toast('Booking ditandai CANCELLED');
+    if($('#drawer').classList.contains('open')) bookingDrawer(id);
+    rerender();
+  };
+  $('#dbDelete').onclick = async () => {
+    $('#dbDelete').disabled = true;
+    const ok = await safely(() => deleteBooking(id));
+    closeModal();
+    if(ok){ closeDrawer(); toast(`Booking ${b.client_display} dihapus`); }
+    rerender();
+  };
+}
+
 export function bookingDrawer(id){
   const b = S.data.bookings.find(x=>x.id===id);
   if(!b) return;
   const pays = S.data.payments.filter(p=>p.booking_id===id);
   const pct = dpPercent();
-  const opt = (role, sel) => S.data.freelancers.filter(f=>f.is_active && (f.role===role||f.role==='OTHER'))
-    .map(f=>`<option value="${f.id}" ${sel===f.id?'selected':''}>${esc(f.name)}</option>`).join('');
+  // freelancer muncul di semua peran yang dipegangnya (peran utama + peran di rate-nya)
+  const opt = (role, sel) => S.data.freelancers.filter(f=>(f.is_active && (hasRole(f, role)||f.role==='OTHER')) || f.id===sel)
+    .map(f=>{ const r = rateFor(f.id, b.service, role);
+      return `<option value="${f.id}" ${sel===f.id?'selected':''}>${esc(f.name)}${r?` — ${rp(r.rate)}`:''}</option>`; }).join('');
 
   const crewCard = (role, roleLabel, name, wa, email, needKey, need, selKey, selVal) => `
     <div style="margin-bottom:14px">
@@ -92,7 +130,7 @@ export function bookingDrawer(id){
           ${wa?`<a class="btn wa sm" target="_blank" rel="noopener" style="text-decoration:none" href="${waUrl(b,name,wa,roleLabel)}">WhatsApp ${roleLabel}</a>`:''}
           ${email?`<a class="btn soft sm" style="text-decoration:none" href="${mailUrl(b,email,roleLabel)}">Email Freelancer</a>`:''}
         </div>`
-      : `<div class="linkrow" style="background:var(--err-bg);color:#C13A40"><b>⚠ ${roleLabel.toUpperCase()} BELUM DITUGASKAN</b></div>`}
+      : `<div class="linkrow" style="background:var(--err-bg);color:var(--err-ink)"><b>⚠ ${roleLabel.toUpperCase()} BELUM DITUGASKAN</b></div>`}
       ${need?`<div class="fld"><select data-sel="${selKey}">
         <option value="">— Pilih ${roleLabel} —</option>${opt(role, selVal)}</select></div>`:''}
     </div>`;
@@ -108,6 +146,7 @@ export function bookingDrawer(id){
     </div>`;
 
   const ig = [b.client_instagram, b.bride_instagram, b.groom_instagram].filter(Boolean).join(' · ');
+  const tk = taskSummary(id);
   const addons = b.add_ons || [];
 
   openDrawer(`
@@ -118,6 +157,7 @@ export function bookingDrawer(id){
         <div class="tsub">${esc(b.service)}${b.sub_category ? ' · ' + esc(b.sub_category) : ''} · ${esc(b.package_name)}</div>
         <div class="tsub">${fmtDate(b.session_date)} · ${esc(timeRange(b))}</div>
         <div class="tsub">${esc(b.location||'—')}${b.map_link?` · <a href="${esc(b.map_link)}" target="_blank" rel="noopener">Buka titik lokasi</a>`:''}</div>
+        <button class="btn soft sm" id="editInfo" style="margin-top:10px">✎ Ubah data client & jadwal</button>
       </div>
       <button class="x" data-dclose>✕</button>
     </div>
@@ -137,7 +177,10 @@ export function bookingDrawer(id){
       ${b.number_of_people ? `<div class="rowline"><span class="k">Jumlah orang</span><span class="v">${b.number_of_people} orang</span></div>` : ''}
       <div class="rowline"><span class="k">Add-on</span><span class="v">${addons.length ? addons.map(a => esc(a.name) + (a.qty > 1 ? ` ×${a.qty}` : '')).join(', ') : '—'}</span></div>
       ${b.notes ? `<div class="rowline"><span class="k">Request</span><span class="v" style="font-weight:400;max-width:70%">${esc(b.notes)}</span></div>` : ''}
-      ${b.whatsapp ? `<a class="btn wa sm" style="margin-top:10px;text-decoration:none" target="_blank" rel="noopener" href="${clientWaUrl(b)}">WhatsApp Client</a>` : ''}
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
+        ${b.whatsapp ? `<a class="btn wa sm" style="text-decoration:none" target="_blank" rel="noopener" href="${clientWaUrl(b)}">WhatsApp Client</a>` : ''}
+        <button class="btn soft sm" id="editInfo2">✎ Ubah data</button>
+      </div>
     </div>
 
     <div class="card" style="margin-bottom:13px">
@@ -187,6 +230,14 @@ export function bookingDrawer(id){
     </div>
 
     <div class="card" style="margin-bottom:13px">
+      <div style="display:flex;align-items:center;gap:8px"><b style="font-size:13px">Task After Event</b>
+        ${tk.list.length ? `<span class="tsub">${tk.done}/${tk.list.length} selesai</span>` : ''}
+        <button class="btn soft sm" id="tkFromDrawer" style="margin-left:auto">+ Task</button></div>
+      <div style="margin-top:8px">${tk.html}</div>
+      ${tk.list.length ? '<button class="btn ghost sm" id="tkOpenTab" style="margin-top:8px">Kelola di Joblist →</button>' : ''}
+    </div>
+
+    <div class="card" style="margin-bottom:13px">
       <div style="display:flex;align-items:center"><b style="font-size:13px">Pembayaran</b>
         <button class="btn soft sm" id="addPay" style="margin-left:auto">Catat pembayaran</button></div>
       <div style="margin-top:10px">${pays.length ? pays.map(p=>`
@@ -198,6 +249,11 @@ export function bookingDrawer(id){
     <div style="display:grid;gap:9px">
       <button class="btn block" id="openInv">Lihat Invoice</button>
       <button class="btn soft block" id="dlInvDirect">Unduh Invoice PDF</button>
+    </div>
+
+    <div class="dangerzone">
+      <div><b>Hapus booking</b><div class="tsub">Untuk data testing atau calon client yang tidak jadi. Tidak bisa dibatalkan.</div></div>
+      <button class="btn danger sm" id="delBooking">Hapus</button>
     </div>`);
 
   // pricing
@@ -264,6 +320,12 @@ export function bookingDrawer(id){
     bookingDrawer(id); rerender();
   };
 
+  $('#editInfo').onclick = $('#editInfo2').onclick = () => editBookingInfo(id);
+  $('#delBooking').onclick = () => confirmDeleteBooking(id);
+  $('#tkFromDrawer').onclick = () => taskForm(null, id);
+  const tkTab = $('#tkOpenTab');
+  if(tkTab) tkTab.onclick = () => { F.joblist.tab = 'tasks'; closeDrawer(); go('joblist'); };
+
   // deliverables
   $('#saveLinks').onclick = async () => {
     const patch = {};
@@ -298,6 +360,90 @@ export function bookingDrawer(id){
 
   $('#openInv').onclick = () => showInvoice(id);
   $('#dlInvDirect').onclick = () => downloadInvoice(S.data.bookings.find(x => x.id === id));
+}
+
+/* ---------- ubah data client, layanan, jadwal & lokasi ---------- */
+const igNorm = v => { const x = String(v || '').trim().replace(/^@+/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/\/.*$/, ''); return x ? '@' + x : null; };
+const waNorm = v => { let d = String(v || '').replace(/\D/g, ''); if(d.startsWith('0')) d = '62' + d.slice(1); return d || null; };
+
+function editBookingInfo(id){
+  const b = S.data.bookings.find(x => x.id === id);
+  if(!b) return;
+  let who = b.client_name || !(b.bride_name || b.groom_name) ? 'single' : 'couple';
+  const svcs = [...new Set([...(S.catalog?.services || []).filter(s => !s.hidden).map(s => s.label), b.service].filter(Boolean))];
+  openModal(`<h3>Ubah data booking</h3>
+    <p>${esc(b.booking_id)} · perubahan tercatat di Log Aktivitas. Harga diubah di kartu Harga.</p>
+    <div style="text-align:left;margin-top:16px">
+      <div class="mlabel">Client</div>
+      <div class="chips" style="margin-bottom:10px"><button type="button" class="chip ${who==='single'?'on':''}" data-eiwho="single">Perorangan</button><button type="button" class="chip ${who==='couple'?'on':''}" data-eiwho="couple">Pasangan</button></div>
+      <div id="eiWho"></div>
+      <div class="fld" style="margin-top:11px"><label>Nomor WhatsApp</label><input id="eiWa" inputmode="tel" value="${esc(b.whatsapp||'')}" placeholder="08xxxxxxxxxx"></div>
+
+      <div class="mlabel" style="margin-top:16px">Layanan</div>
+      <div class="fgrid two">
+        <div class="fld"><label>Kategori / layanan *</label><input id="eiSvc" list="eiSvcs" value="${esc(b.service||'')}"><datalist id="eiSvcs">${svcs.map(s => `<option value="${esc(s)}">`).join('')}</datalist></div>
+        <div class="fld"><label>Nama paket *</label><input id="eiPkg" value="${esc(b.package_name||'')}"></div>
+      </div>
+      <div class="fld" style="margin-top:11px"><label>Jumlah orang</label><input id="eiPeople" type="number" min="1" value="${b.number_of_people||''}" placeholder="opsional"></div>
+
+      <div class="mlabel" style="margin-top:16px">Jadwal & lokasi</div>
+      <div class="ei-when">
+        <div class="fld"><label>Tanggal sesi *</label><input id="eiDate" type="date" value="${b.session_date||''}"></div>
+        <div class="fld"><label>Jam mulai</label><input id="eiTime" type="time" value="${b.session_time||''}"></div>
+        <div class="fld"><label>Jam selesai</label><input id="eiEnd" type="time" value="${b.session_end_time||''}"></div>
+      </div>
+      <div class="fld" style="margin-top:11px"><label>Lokasi</label><input id="eiLoc" value="${esc(b.location||'')}" placeholder="mis. Isola UPI Bandung"></div>
+      <div class="fld" style="margin-top:11px"><label>Link titik lokasi (Google Maps)</label><input id="eiMap" value="${esc(b.map_link||'')}" placeholder="https://maps.app.goo.gl/…"></div>
+      <div class="fld" style="margin-top:11px"><label>Catatan / request client</label><textarea id="eiNotes" rows="3">${esc(b.notes||'')}</textarea></div>
+      <div id="eiErr" class="fl-err"></div>
+    </div>
+    <div class="acts"><button class="btn soft" data-mclose>Batal</button><button class="btn" id="eiSave">Simpan</button></div>`);
+
+  const paintWho = () => {
+    $('#eiWho').innerHTML = who === 'couple' ? `<div class="fgrid two">
+        <div class="fld"><label>Nama pengantin wanita *</label><input id="eiBride" value="${esc(b.bride_name||'')}"></div><div class="fld"><label>Instagram wanita</label><input id="eiBrideIg" value="${esc(b.bride_instagram||'')}" placeholder="@username"></div>
+        <div class="fld"><label>Nama pengantin pria *</label><input id="eiGroom" value="${esc(b.groom_name||'')}"></div><div class="fld"><label>Instagram pria</label><input id="eiGroomIg" value="${esc(b.groom_instagram||'')}" placeholder="@username"></div></div>`
+      : `<div class="fgrid two"><div class="fld"><label>Nama client *</label><input id="eiClient" value="${esc(b.client_name || (b.bride_name || b.groom_name ? [b.bride_name, b.groom_name].filter(Boolean).join(' & ') : ''))}"></div>
+         <div class="fld"><label>Instagram</label><input id="eiClientIg" value="${esc(b.client_instagram || b.bride_instagram || '')}" placeholder="@username"></div></div>`;
+  };
+  paintWho();
+  $$('[data-eiwho]').forEach(c => c.onclick = () => {
+    who = c.dataset.eiwho;
+    $$('[data-eiwho]').forEach(x => x.classList.toggle('on', x === c));
+    paintWho();
+  });
+
+  $('#eiSave').onclick = async () => {
+    const v = k => ($('#' + k)?.value || '').trim();
+    const err = m => { const e = $('#eiErr'); e.textContent = m; e.style.display = m ? 'block' : 'none'; };
+    const miss = [];
+    if(who === 'couple' ? !(v('eiBride') && v('eiGroom')) : !v('eiClient')) miss.push('nama client');
+    if(!v('eiSvc')) miss.push('layanan');
+    if(!v('eiPkg')) miss.push('nama paket');
+    if(!v('eiDate')) miss.push('tanggal sesi');
+    if(miss.length) return err('Lengkapi dulu: ' + miss.join(', ') + '.');
+    if(v('eiTime') && v('eiEnd') && v('eiEnd') <= v('eiTime')) return err('Jam selesai harus setelah jam mulai.');
+    if(!v('eiTime') && v('eiEnd')) return err('Isi jam mulai dulu sebelum jam selesai.');
+    const svc = (S.catalog?.services || []).find(s => s.label === v('eiSvc'));
+    const people = Number(v('eiPeople'));
+    // semua kolom identitas selalu dikirim supaya pindah Perorangan ↔ Pasangan tidak meninggalkan nama lama
+    const patch = {
+      ...(who === 'couple'
+        ? {client_name:null, client_instagram:null, bride_name:v('eiBride'), bride_instagram:igNorm(v('eiBrideIg')), groom_name:v('eiGroom'), groom_instagram:igNorm(v('eiGroomIg'))}
+        : {client_name:v('eiClient'), client_instagram:igNorm(v('eiClientIg')), bride_name:null, bride_instagram:null, groom_name:null, groom_instagram:null}),
+      whatsapp: waNorm(v('eiWa')),
+      service: v('eiSvc'), service_id: svc ? svc.id : (v('eiSvc') === b.service ? b.service_id : null),
+      package_name: v('eiPkg'), number_of_people: people > 0 ? Math.round(people) : null,
+      session_date: v('eiDate'), session_time: v('eiTime') || null, session_end_time: v('eiEnd') || null,
+      location: v('eiLoc') || null, map_link: v('eiMap') || null, notes: v('eiNotes') || null
+    };
+    // kirim hanya yang berubah
+    for(const k of Object.keys(patch)) if((b[k] ?? null) === (patch[k] ?? null)) delete patch[k];
+    if(!Object.keys(patch).length){ closeModal(); return toast('Tidak ada perubahan'); }
+    const btn = $('#eiSave'); btn.disabled = true;
+    if(await safely(() => saveBooking(id, patch))){ closeModal(); toast('Data booking diperbarui'); bookingDrawer(id); rerender(); }
+    else btn.disabled = false;
+  };
 }
 
 /* =====================================================================

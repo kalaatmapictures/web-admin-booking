@@ -7,7 +7,7 @@
 import { $, $$, S, RENDER, rp, esc, toast, money, moneyVal, openDrawer, closeDrawer,
          confirmBox, commitCatalog, logAct, buildPackages } from '../core.js';
 import { defaultCatalog, isCatalog, publicCatalog } from '../shared/catalog.js';
-import { LANDING_URL } from '../data/config.js';
+import { renderContent, contentDirty } from './content.js';
 
 const MN = { tab:'svc', svc:null };
 const slug = t => String(t).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'item';
@@ -206,17 +206,18 @@ RENDER.menu = () => {
   const pub = publicCatalog(S.catalog);
   const live = Object.keys(pub.services).length;
   $('#pgSub').textContent = `${live} dari ${S.catalog.services.length} layanan tampil di landing page`;
-  const tabs = [['svc','Layanan & Paket'],['terms','Syarat & Ketentuan'],['settings','Pembayaran & Kontak']];
+  const tabs = [['svc','Layanan & Paket'],['content','Konten'],['terms','Syarat & Ketentuan'],['settings','Pembayaran & Kontak']];
   $('#page').innerHTML = `
     <div class="jb-bar">
       <div class="chips">${tabs.map(([k, l]) => `<button class="chip ${MN.tab === k ? 'on' : ''}" data-mntab="${k}">${l}</button>`).join('')}</div>
-      <div class="chips" style="margin-left:auto">
-        <a class="btn soft sm" href="${LANDING_URL}" target="_blank" rel="noopener" style="text-decoration:none">Lihat landing page ↗</a>
-      </div>
     </div>
     <div id="mnBody"></div>`;
-  $$('[data-mntab]').forEach(b => b.onclick = () => { MN.tab = b.dataset.mntab; RENDER.menu(); });
-  ({svc:renderServices, terms:renderTerms, settings:renderSettings})[MN.tab]();
+  $$('[data-mntab]').forEach(b => b.onclick = async () => {
+    if(MN.tab === 'content' && b.dataset.mntab !== 'content' && contentDirty()
+       && !await confirmBox('Konten belum disimpan', 'Perubahan tetap tersimpan sementara selama halaman tidak di-refresh. Pindah tab?', 'Pindah tab', false)) return RENDER.menu();
+    MN.tab = b.dataset.mntab; RENDER.menu();
+  });
+  ({svc:renderServices, content:renderContent, terms:renderTerms, settings:renderSettings})[MN.tab]();
 };
 
 /* ---------- layanan & paket ---------- */
@@ -265,7 +266,7 @@ function renderServices(){
         <div class="mn-item ${p.hidden ? 'is-hidden' : ''}">
           <div class="info">
             <div class="t">${esc(p.name)}
-              ${p.bestSeller ? '<span class="lb lb-grey" style="background:var(--ink);color:#fff">BEST SELLER</span>' : ''}
+              ${p.bestSeller ? '<span class="lb lb-grey" style="background:var(--solid);color:var(--solid-ink)">BEST SELLER</span>' : ''}
               ${p.recommended ? '<span class="lb lb-orange">RECOMMENDED</span>' : ''}
               ${p.hidden ? '<span class="lb lb-grey">Disembunyikan</span>' : ''}</div>
             <div class="tsub">${p.items.length} poin · ${esc(p.items.slice(0, 3).join(', '))}${p.items.length > 3 ? '…' : ''}${g.people && p.min != null ? ` · ${p.min}–${p.max} orang` : ''}</div>

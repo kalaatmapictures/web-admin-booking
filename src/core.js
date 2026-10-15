@@ -6,6 +6,7 @@
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, supabaseReady } from './data/supabase.js';
 import { CATALOG_KEY, defaultCatalog, isCatalog } from './shared/catalog.js';
 import { showNotifications } from './pages/detail.js';
+import { applyTheme, themeSeg } from './theme.js';
 
 export const CONFIGURED = supabaseReady();
 
@@ -89,14 +90,14 @@ export const dpPercent = () => Number(S.catalog?.settings?.dpPercent) || 40;
 /* =====================================================================
    DATA LAYER
    ===================================================================== */
-export async function authToken(){
+async function token(){
   const { data:{ session } } = await sb.auth.getSession();   // diperbarui otomatis oleh supabase-js
   return session?.access_token || SUPABASE_ANON_KEY;
 }
 export async function api(path, {method='GET', body, prefer}={}){
   const h = {
     'apikey': SUPABASE_ANON_KEY,
-    'Authorization': 'Bearer ' + await authToken(),
+    'Authorization': 'Bearer ' + await token(),
     'Content-Type': 'application/json'
   };
   if(prefer) h.Prefer = prefer;
@@ -105,6 +106,25 @@ export async function api(path, {method='GET', body, prefer}={}){
   if(res.status === 204) return null;
   const txt = await res.text();
   return txt ? JSON.parse(txt) : null;
+}
+
+/* Upload file ke Supabase Storage (bucket publik) → URL publik. */
+export async function storageUpload(bucket, path, blob, type){
+  const base = SUPABASE_URL.replace(/\/+$/,'');
+  const res = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, {method:'POST', body:blob, headers:{
+    apikey:SUPABASE_ANON_KEY, Authorization:'Bearer ' + await token(), 'Content-Type':type, 'x-upsert':'false'}});
+  if(!res.ok) throw new Error(res.status + ' — ' + await res.text());
+  return `${base}/storage/v1/object/public/${bucket}/${path}`;
+}
+
+/* Panggil Supabase Edge Function sebagai admin yang sedang login. */
+export async function callFn(name, body){
+  const res = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/functions/v1/' + name, {method:'POST',
+    headers:{apikey:SUPABASE_ANON_KEY, Authorization:'Bearer ' + await token(), 'Content-Type':'application/json'},
+    body:JSON.stringify(body || {})});
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok) throw new Error(data.error || ('Error ' + res.status));
+  return data;
 }
 
 /* kolom time Postgres datang sebagai "09:00:00" — tampilkan "09:00" */
@@ -141,8 +161,46 @@ export async function loadAll(){
     S.data = {bookings: bookings.map(normBooking), freelancers, payments, leads, clients, transactions, crewFees:[], activity,
               packageCosts: Object.fromEntries(costs.map(c => [c.package_id, c.hpp_estimate]))};
   }
+  await Promise.all([loadFreelancerExtras(), loadPostTasks(), loadDebts()]);
   buildPackages();
   refreshBell();
+}
+
+/* Rate per event & pilihan rate type/event. Tabel ini ditambahkan belakangan:
+   bila schema.sql terbaru belum dijalankan, BMS tetap jalan dan halaman
+   Freelancer menampilkan petunjuk. */
+export async function loadFreelancerExtras(){
+  try{
+    const [rates, options] = await Promise.all([
+      api('freelancer_rates?select=*&order=created_at'),
+      api('freelancer_options?select=*&order=sort_order,label')
+    ]);
+    Object.assign(S.data, {freelancerRates: rates, freelancerOptions: options, flSchemaMissing: false});
+  }catch(e){
+    console.warn('[Kalaatma] tabel rate freelancer belum ada:', e.message);
+    Object.assign(S.data, {freelancerRates: [], freelancerOptions: [], flSchemaMissing: true});
+  }
+}
+/* Hutang piutang (tab Keuangan). Bila tabel belum ada, tab menampilkan petunjuk. */
+export async function loadDebts(){
+  try{
+    const [debts, pays] = await Promise.all([api('debts?select=*&order=created_at.desc'), api('debt_payments?select=*&order=paid_on.desc')]);
+    Object.assign(S.data, {debts, debtPayments: pays, debtsSchemaMissing: false});
+  }catch(e){
+    console.warn('[Kalaatma] tabel hutang piutang belum ada:', e.message);
+    Object.assign(S.data, {debts: [], debtPayments: [], debtsSchemaMissing: true});
+  }
+}
+/* Task after event. Tabel ditambahkan belakangan: bila belum ada, tab
+   Task After Event menampilkan petunjuk dan halaman lain tetap jalan. */
+export async function loadPostTasks(){
+  try{
+    S.data.postTasks = await api('post_tasks?select=*&order=created_at');
+    S.data.tasksSchemaMissing = false;
+  }catch(e){
+    console.warn('[Kalaatma] tabel post_tasks belum ada:', e.message);
+    Object.assign(S.data, {postTasks: [], tasksSchemaMissing: true});
+  }
 }
 
 /* ---------- log aktivitas admin ---------- */
@@ -153,17 +211,20 @@ const FIELD = {
   transport_charge:'Transport', other_charge:'Other charge', discount:'Discount',
   photo_drive_link:'Link foto', video_drive_link:'Link video', raw_file_link:'Link raw', final_file_link:'Link final',
   delivery_date:'Tanggal delivery', labels:'Label', payment_due_date:'Jatuh tempo',
-  rate:'Rate', rate_type:'Tipe rate', gear:'Gear', is_active:'Aktif',
+  rate:'Rate', rate_type:'Tipe rate', event:'Event', role:'Peran', note:'Catatan', gear:'Gear', is_active:'Aktif',
   kind:'Jenis', amount:'Jumlah', category:'Kategori', description:'Deskripsi', occurred_on:'Tanggal', booking_id:'Project',
-  hpp_estimate:'HPP'
+  hpp_estimate:'HPP', party:'Pihak', issued_on:'Tanggal', name:'Nama', whatsapp:'WhatsApp', email:'Email', source:'Sumber', follow_up_date:'Follow-up', estimated_value:'Estimasi', title:'Judul', task_type:'Jenis', assignee_id:'Penanggung jawab', due_date:'Deadline', notes:'Catatan',
+  client_name:'Nama client', bride_name:'Nama wanita', groom_name:'Nama pria', client_instagram:'Instagram', bride_instagram:'Instagram wanita',
+  groom_instagram:'Instagram pria', service:'Layanan', package_name:'Paket', number_of_people:'Jumlah orang', session_date:'Tanggal sesi',
+  session_time:'Jam mulai', session_end_time:'Jam selesai', location:'Lokasi', map_link:'Titik lokasi', instagram:'Instagram', based_in:'Based'
 };
-const MONEY_F = new Set(['custom_package_price','additional_charge','extra_time_charge','transport_charge','other_charge','discount','rate','amount','hpp_estimate']);
-const LINK_F = new Set(['photo_drive_link','video_drive_link','raw_file_link','final_file_link']);
+const MONEY_F = new Set(['custom_package_price','additional_charge','extra_time_charge','transport_charge','other_charge','discount','rate','amount','hpp_estimate','estimated_value']);
+const LINK_F = new Set(['photo_drive_link','video_drive_link','raw_file_link','final_file_link','map_link']);
 function fmtField(k, v){
   if(v === null || v === undefined || v === '') return '—';
   if(MONEY_F.has(k)) return rp(v);
   if(LINK_F.has(k)) return 'terisi';
-  if(k === 'photographer_id' || k === 'videographer_id') return S.data.freelancers.find(f => f.id === v)?.name || '—';
+  if(k === 'photographer_id' || k === 'videographer_id' || k === 'assignee_id') return S.data.freelancers.find(f => f.id === v)?.name || '—';
   if(k === 'booking_id') return S.data.bookings.find(b => b.id === v)?.client_display || '—';
   if(typeof v === 'boolean') return v ? 'Ya' : 'Tidak';
   if(Array.isArray(v)) return v.length ? v.join(', ') : '—';
@@ -208,6 +269,30 @@ export async function addPayment(bookingId, row){
   await logAct('create', 'Pembayaran', b?.client_display, `${row.kind} ${rp(row.amount)}${row.method ? ' · ' + row.method : ''}`);
   refreshBell();
 }
+/* Hapus permanen. Database ikut menghapus/mengosongkan data terkait (lihat
+   foreign key di schema.sql), jadi data dimuat ulang sesudahnya.
+   return=representation dipakai untuk memastikan baris benar-benar terhapus. */
+async function hardDelete(table, id){
+  const rows = await api(`${table}?id=eq.${id}`, {method:'DELETE', prefer:'return=representation'});
+  if(!rows?.length) throw new Error('Data tidak ditemukan atau tidak boleh dihapus');
+}
+export async function deleteBooking(id){
+  const b = S.data.bookings.find(x => x.id === id);
+  const pays = S.data.payments.filter(p => p.booking_id === id);
+  await hardDelete('bookings', id);
+  await loadAll();
+  await logAct('delete', 'Booking', b?.client_display, [b?.booking_id, b?.service, b && fmtDate(b.session_date),
+    pays.length ? `${pays.length} pembayaran (${rp(pays.reduce((n, p) => n + p.amount, 0))}) ikut terhapus` : null].filter(Boolean).join(' · '));
+  refreshBell();
+}
+export async function deleteFreelancer(id){
+  const f = S.data.freelancers.find(x => x.id === id);
+  const jobs = S.data.bookings.filter(b => b.photographer_id === id || b.videographer_id === id).length;
+  await hardDelete('freelancers', id);
+  await loadAll();
+  await logAct('delete', 'Freelancer', f?.name, jobs ? `dilepas dari ${jobs} booking` : null);
+}
+
 const ENTITY = {freelancers:'Freelancer', transactions:'Transaksi', leads:'Lead', clients:'Client'};
 const rowName = (store, r) => r ? (r.name || r.description || r.client_display || r.id) : '—';
 export async function saveRow(table, id, patch, store){
@@ -362,6 +447,7 @@ const ICONS = {
   kas:'<rect x="2" y="6" width="20" height="13" rx="3"/><path d="M2 11h20"/><circle cx="17" cy="15" r="1.4"/>',
   calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 11h18"/><circle cx="8.5" cy="15.5" r="1.2"/><circle cx="12" cy="15.5" r="1.2"/>',
   activity:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  sosmed:'<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/>',
   ads:'<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>'
 };
 export const PAGES = [
@@ -373,27 +459,69 @@ export const PAGES = [
   {id:'freelancer', label:'Freelancer',title:'Freelancer'},
   {id:'paket',      label:'Paket',     title:'Paket & Harga'},
   {id:'menu',       label:'Menu',      title:'Menu Landing Page'},
-  {id:'kas',        label:'Keuangan',  title:'Keuangan / Kas'},
+  {id:'sosmed',     label:'Sosmed',    title:'Konten Sosmed'},
   {id:'ads',        label:'Meta Ads',  title:'Performa Meta Ads'},
+  {id:'kas',        label:'Keuangan',  title:'Keuangan / Kas'},
   {id:'calendar',   label:'Kalender',  title:'Kalender'},
   {id:'activity',   label:'Aktivitas', title:'Log Aktivitas'}
 ];
 export const svg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>`;
 
+/* Di HP hanya 4 menu utama di bar bawah; sisanya lewat tombol "Lainnya". */
+const MOB_MAIN = ['dashboard', 'booking', 'joblist', 'kas'];
+const MORE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>';
 function buildNav(){
   $('#nav').innerHTML = PAGES.map(p =>
     `<button class="navlink" data-go="${p.id}">${svg(p.id)}${p.label}<span class="cnt hide" data-badge="${p.id}"></span></button>`).join('');
-  $('#mobnav').innerHTML = PAGES.map(p =>
-    `<button data-go="${p.id}">${svg(p.id)}<span>${p.label}</span></button>`).join('');
+  $('#mobnav').innerHTML = PAGES.filter(p => MOB_MAIN.includes(p.id)).map(p =>
+    `<button data-go="${p.id}">${svg(p.id)}<span>${p.label}</span><i class="mcnt hide" data-mbadge="${p.id}"></i></button>`).join('')
+    + `<button id="mobMore">${MORE_ICON}<span>Lainnya</span></button>`;
   $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+  $('#mobMore').onclick = openMoreMenu;
+  $('#themeSide').innerHTML = themeSeg();
+  applyTheme();
   refreshBell();
 }
+function openMoreMenu(){
+  openModal(`<h3>Menu</h3>
+    <div class="more-grid">${PAGES.map(p => `<button class="${S.page === p.id ? 'on' : ''}" data-more="${p.id}">${svg(p.id)}<span>${p.title}</span></button>`).join('')}</div>
+    <div class="mlabel" style="margin:16px 0 8px">Tampilan</div>
+    ${themeSeg()}
+    <div class="more-foot"><div class="tsub">Masuk sebagai <b>${esc(S.admin.name)}</b></div>
+      <button class="btn soft sm" id="moreLogout">Keluar</button></div>`);
+  $$('[data-more]').forEach(b => b.onclick = () => { closeModal(); go(b.dataset.more); });
+  $('#moreLogout').onclick = () => { closeModal(); $('#logoutBtn').click(); };
+}
+
+/* Tabel jadi kartu di HP: setiap sel diberi label dari judul kolomnya (lihat CSS .mtable). */
+function labelTables(){
+  $$('#page .tablewrap table').forEach(t => {
+    const heads = [...t.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    if(!heads.length) return;
+    t.classList.add('mtable');
+    t.querySelectorAll('tbody tr').forEach(tr => {
+      if(tr.cells.length !== heads.length) return;
+      [...tr.cells].forEach((td, i) => {
+        if(!td.hasAttribute('data-label')) td.dataset.label = heads[i];
+        // sel yang isinya hanya tombol aksi → baris aksi selebar kartu
+        if(td.querySelector('button, a.btn') && !td.querySelector('.badge, .tname, .tsub, .lb')) td.classList.add('acts');
+      });
+    });
+  });
+}
+let labelQueued = false;
+new MutationObserver(() => {
+  if(labelQueued) return;
+  labelQueued = true;
+  queueMicrotask(() => { labelQueued = false; labelTables(); });
+}).observe(document.getElementById('page'), {childList:true, subtree:true});
 export function go(id){
   S.page = id;
   const p = PAGES.find(x=>x.id===id);
   $('#pgTitle').textContent = p.title;
   $('#pgSub').textContent = '';
   $$('[data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
+  $('#mobMore')?.classList.toggle('on', !MOB_MAIN.includes(id));
   RENDER[id]();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -406,6 +534,8 @@ export function refreshBell(){
   el.textContent = n; el.classList.toggle('hide', n === 0);
   const badge = $('[data-badge="booking"]');
   if(badge){ badge.textContent = n; badge.classList.toggle('hide', n === 0); }
+  const mb = $('[data-mbadge="booking"]');
+  if(mb){ mb.textContent = n; mb.classList.toggle('hide', n === 0); }
 }
 
 /* drawer & modal plumbing */
@@ -462,13 +592,51 @@ export function chipbar(opts, active, onPick, alt){
 export function customRange(f, onChange){
   const id = 'cr' + (++barSeq);
   HANDLERS[id] = onChange;
-  const st = 'background:#fff;border:0;border-radius:99px;padding:8px 13px;font-size:12px;box-shadow:var(--shadow)';
+  const st = 'background:var(--surface);border:0;border-radius:99px;padding:8px 13px;font-size:12px;box-shadow:var(--shadow)';
   return `<div class="chips" data-range="${id}" style="align-items:center">
     <input type="date" value="${f.from||''}" style="${st}">
     <span style="color:var(--muted);font-size:12px">s/d</span>
     <input type="date" value="${f.to||''}" style="${st}">
   </div>`;
 }
+/* ---------- pencarian (Booking, Joblist, Lead, Client, Keuangan) ----------
+   Tidak membedakan huruf besar/kecil & aksen; semua kata harus cocok.
+   Nomor WA cocok walau formatnya beda (0812… / 62812… / +62 812-…). */
+const norm = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const phoneForms = v => {
+  const d = String(v || '').replace(/\D/g, '');
+  if(!d) return '';
+  return [d, d.startsWith('62') ? '0' + d.slice(2) : d.startsWith('0') ? '62' + d.slice(1) : ''].join(' ');
+};
+export function matchQuery(q, fields, phones = []){
+  const words = norm(q).trim().split(/\s+/).filter(Boolean);
+  if(!words.length) return true;
+  const hay = norm(fields.filter(v => v !== null && v !== undefined && v !== '').join(' ')) + ' ' + phones.map(phoneForms).join(' ');
+  return words.every(w => hay.includes(w) || (/^[\d+().\-]+$/.test(w) && w.replace(/\D/g, '') && hay.includes(w.replace(/\D/g, ''))));
+}
+/* kata kunci booking: nama client & pasangan, ID, layanan, paket, lokasi, invoice, crew, WA */
+export const bookingMatch = (b, q) => matchQuery(q, [b.client_display, b.client_name, b.bride_name, b.groom_name, b.booking_id,
+  b.service, b.sub_category, b.package_name, b.location, b.invoice_number, b.photographer_name, b.videographer_name,
+  b.client_instagram, b.bride_instagram, b.groom_instagram, b.notes, b.status], [b.whatsapp]);
+const SEARCH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
+export const searchBox = (id, f, placeholder) => `<label class="searchbox">${SEARCH_ICON}
+  <input type="search" id="${id}" value="${esc(f.q || '')}" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}" autocomplete="off">
+  ${f.q ? `<button type="button" class="sx" data-sclear="${id}" aria-label="Hapus pencarian">✕</button>` : ''}</label>`;
+/* render ulang saat mengetik tanpa kehilangan fokus/posisi kursor */
+export function bindSearch(id, f, rerender){
+  const el = $('#' + id);
+  if(!el) return;
+  el.oninput = () => {
+    f.q = el.value;
+    const pos = el.selectionStart;
+    rerender();
+    const n = $('#' + id);
+    if(n){ n.focus(); n.setSelectionRange(pos, pos); }
+  };
+  const x = $(`[data-sclear="${id}"]`);
+  if(x) x.onclick = e => { e.preventDefault(); f.q = ''; rerender(); $('#' + id)?.focus(); };
+}
+
 export const crewBadge = s => s==='COMPLETE' ? '<span class="badge b-ok"><span class="d"></span>Complete</span>'
   : s==='PARTIAL' ? '<span class="badge b-warn"><span class="d"></span>Partial</span>'
   : '<span class="badge b-err"><span class="d"></span>Not Assigned</span>';
@@ -491,8 +659,10 @@ export const F = {
   booking: {date:'all', custom:{}, sort:'nearest', crew:'all', requireCrew:false},
   lead:    {date:'all', custom:{}, sort:'newest'},
   client:  {cat:'ALL', from:null, to:null, monthLabel:null, sort:'newest'},
-  kas:     {from:null, to:null, monthLabel:null, cat:'ALL', init:false},
+  kas:     {from:null, to:null, monthLabel:null, cat:'ALL', init:false, tab:'kas'},
   activity:{q:'', action:'', entity:''},
+  joblist:{tab:'board'},
+  freelancer:{tab:'list', from:null, to:null, monthLabel:null, role:'ALL', init:false},
   ads:     {date:'last7', custom:{}, level:'campaign', sort:'spend', metric:'spend'}
 };
 window.F = F;
