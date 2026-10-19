@@ -198,6 +198,8 @@ alter table public.bookings add column if not exists outfit_count int check (out
   add column if not exists concept text, add column if not exists props text;
 -- kampus untuk layanan Graduation (wajib di form booking)
 alter table public.bookings add column if not exists campus text;
+-- jawaban popup "Tahu Kalaatma dari mana?" di form booking
+alter table public.bookings add column if not exists referral_source text;
 create index if not exists bookings_session_date_idx on public.bookings (session_date);
 create index if not exists bookings_status_idx on public.bookings (status);
 
@@ -518,7 +520,7 @@ select
   (b.gcal_event_id is not null)                  as gcal_synced,
   (c1.crew <> 'COMPLETE' or c4.overdue
      or (b.status in ('EVENT_DONE','DELIVERED') and c1.deliv_missing)) as needs_attention,
-  b.outfit_count, b.concept, b.props, b.campus
+  b.outfit_count, b.concept, b.props, b.campus, b.referral_source
 from public.bookings b
 left join public.freelancers ph on ph.id = b.photographer_id
 left join public.freelancers vg on vg.id = b.videographer_id
@@ -588,7 +590,7 @@ grant insert (booking_id, status, service, service_id, sub_category, package_id,
               location, map_link, latitude, longitude, whatsapp, notes,
               estimated_total, estimated_dp, estimated_remaining,
               bride_name, bride_instagram, groom_name, groom_instagram, client_name, client_instagram,
-              outfit_count, concept, props, campus)
+              outfit_count, concept, props, campus, referral_source)
   on public.bookings to anon;
 drop policy if exists "publik mengirim booking" on public.bookings;
 create policy "publik mengirim booking" on public.bookings

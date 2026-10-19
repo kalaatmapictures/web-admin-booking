@@ -180,6 +180,7 @@ export function bookingDrawer(id){
       ${b.outfit_count ? `<div class="rowline"><span class="k">Jumlah outfit</span><span class="v">${b.outfit_count >= 6 ? '6 atau lebih' : b.outfit_count + ' outfit'}</span></div>` : ''}
       ${b.concept ? `<div class="rowline"><span class="k">Tema / konsep</span><span class="v" style="font-weight:400;max-width:70%">${esc(b.concept)}</span></div>` : ''}
       ${b.props ? `<div class="rowline"><span class="k">Properti dibawa</span><span class="v" style="font-weight:400;max-width:70%;white-space:pre-line">${esc(b.props)}</span></div>` : ''}
+      ${b.referral_source ? `<div class="rowline"><span class="k">Tahu Kalaatma dari</span><span class="v">${esc(b.referral_source)}</span></div>` : ''}
       ${b.notes ? `<div class="rowline"><span class="k">Request</span><span class="v" style="font-weight:400;max-width:70%">${esc(b.notes)}</span></div>` : ''}
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
         ${b.whatsapp ? `<a class="btn wa sm" style="text-decoration:none" target="_blank" rel="noopener" href="${clientWaUrl(b)}">WhatsApp Client</a>` : ''}
@@ -411,6 +412,7 @@ function editBookingInfo(id){
         <div class="fld" style="margin-top:11px"><label>List properti (satu per baris)</label><textarea id="eiProps" rows="3">${esc(b.props||'')}</textarea></div>
       </div>
       <div class="fld" style="margin-top:11px"><label>Catatan / request client</label><textarea id="eiNotes" rows="3">${esc(b.notes||'')}</textarea></div>
+      <div class="fld" style="margin-top:11px"><label>Tahu Kalaatma dari</label><select id="eiRef"><option value="">—</option>${[...new Set(['Instagram','Teman','TikTok','Iklan','Pencarian','Lainnya', ...(b.referral_source ? [b.referral_source] : [])])].map(o => `<option ${b.referral_source===o?'selected':''}>${esc(o)}</option>`).join('')}</select></div>
       <div id="eiErr" class="fl-err"></div>
     </div>
     <div class="acts"><button class="btn soft" data-mclose>Batal</button><button class="btn" id="eiSave">Simpan</button></div>`);
@@ -455,7 +457,7 @@ function editBookingInfo(id){
       service: v('eiSvc'), service_id: svc ? svc.id : (v('eiSvc') === b.service ? b.service_id : null),
       package_name: v('eiPkg'), number_of_people: people > 0 ? Math.round(people) : null,
       session_date: v('eiDate'), session_time: v('eiTime') || null, session_end_time: v('eiEnd') || null,
-      location: v('eiLoc') || null, map_link: v('eiMap') || null, notes: v('eiNotes') || null
+      location: v('eiLoc') || null, map_link: v('eiMap') || null, notes: v('eiNotes') || null, referral_source: v('eiRef') || null
     };
     if(!$('#eiGrad').hidden) patch.campus = v('eiCampus') || null;
     if(!$('#eiPw').hidden){
