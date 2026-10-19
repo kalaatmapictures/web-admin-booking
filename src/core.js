@@ -216,7 +216,8 @@ const FIELD = {
   hpp_estimate:'HPP', party:'Pihak', issued_on:'Tanggal', name:'Nama', whatsapp:'WhatsApp', email:'Email', source:'Sumber', follow_up_date:'Follow-up', estimated_value:'Estimasi', title:'Judul', task_type:'Jenis', assignee_id:'Penanggung jawab', due_date:'Deadline', notes:'Catatan',
   client_name:'Nama client', bride_name:'Nama wanita', groom_name:'Nama pria', client_instagram:'Instagram', bride_instagram:'Instagram wanita',
   groom_instagram:'Instagram pria', service:'Layanan', package_name:'Paket', number_of_people:'Jumlah orang', session_date:'Tanggal sesi',
-  session_time:'Jam mulai', session_end_time:'Jam selesai', location:'Lokasi', map_link:'Titik lokasi', instagram:'Instagram', based_in:'Based'
+  session_time:'Jam mulai', session_end_time:'Jam selesai', location:'Lokasi', map_link:'Titik lokasi', instagram:'Instagram', based_in:'Based',
+  outfit_count:'Jumlah outfit', concept:'Tema / konsep', props:'Properti'
 };
 const MONEY_F = new Set(['custom_package_price','additional_charge','extra_time_charge','transport_charge','other_charge','discount','rate','amount','hpp_estimate','estimated_value']);
 const LINK_F = new Set(['photo_drive_link','video_drive_link','raw_file_link','final_file_link','map_link']);
