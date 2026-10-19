@@ -102,6 +102,31 @@ export function confirmDeleteBooking(id){
   };
 }
 
+/* semua isian form booking, sesuai urutan di form — kolom kosong tetap tampil sebagai "—" */
+function clientRows(b, addons){
+  const row = (k, v, wide) => `<div class="rowline"><span class="k">${k}</span><span class="v"${wide ? ' style="font-weight:400;max-width:70%;white-space:pre-line;text-align:right"' : ''}>${v || '<span style="color:var(--muted)">—</span>'}</span></div>`;
+  const who = (name, ig) => name ? esc(name) + (ig ? ` <span style="color:var(--muted);font-weight:400">${esc(ig)}</span>` : '') : '';
+  const couple = !b.client_name && (b.bride_name || b.groom_name);
+  return [
+    couple ? row('Pengantin wanita', who(b.bride_name, b.bride_instagram)) + row('Pengantin pria', who(b.groom_name, b.groom_instagram))
+           : row('Nama lengkap / PIC', who(b.client_name, b.client_instagram)),
+    b.campus || /graduation|wisuda/i.test(b.service || '') ? row('Kampus', esc(b.campus)) : '',
+    row('WhatsApp', esc(b.whatsapp)),
+    row('Layanan', esc(b.service) + (b.sub_category ? ' · ' + esc(b.sub_category) : '') + (b.package_name ? ' · ' + esc(b.package_name) : '')),
+    b.number_of_people ? row('Jumlah orang', b.number_of_people + ' orang') : '',
+    row('Tanggal sesi', b.session_date ? fmtDate(b.session_date, true) : ''),
+    row('Jam mulai – selesai', b.session_time ? esc(timeRange(b)) + ' WIB' : ''),
+    row('Lokasi', esc(b.location), true),
+    row('Titik lokasi', b.map_link ? `<a href="${esc(b.map_link)}" target="_blank" rel="noopener">Buka Google Maps</a>` : ''),
+    row('Add-on', addons.map(a => esc(a.name) + (a.qty > 1 ? ` ×${a.qty}` : '')).join(', ')),
+    b.outfit_count ? row('Jumlah outfit', b.outfit_count >= 6 ? '6 atau lebih' : b.outfit_count + ' outfit') : '',
+    b.concept ? row('Tema / konsep', esc(b.concept), true) : '',
+    b.props ? row('Properti dibawa', esc(b.props), true) : '',
+    row('Tahu Kalaatma dari', esc(b.referral_source)),
+    row('Catatan / request', esc(b.notes), true)
+  ].join('');
+}
+
 export function bookingDrawer(id){
   const b = S.data.bookings.find(x=>x.id===id);
   if(!b) return;
@@ -145,7 +170,6 @@ export function bookingDrawer(id){
       </div>
     </div>`;
 
-  const ig = [b.client_instagram, b.bride_instagram, b.groom_instagram].filter(Boolean).join(' · ');
   const tk = taskSummary(id);
   const addons = b.add_ons || [];
 
@@ -172,16 +196,7 @@ export function bookingDrawer(id){
 
     <div class="card" style="margin-bottom:13px">
       <b style="font-size:13px">Data dari client</b>
-      <div class="rowline" style="margin-top:6px"><span class="k">WhatsApp</span><span class="v">${esc(b.whatsapp||'—')}</span></div>
-      ${ig ? `<div class="rowline"><span class="k">Instagram</span><span class="v">${esc(ig)}</span></div>` : ''}
-      ${b.number_of_people ? `<div class="rowline"><span class="k">Jumlah orang</span><span class="v">${b.number_of_people} orang</span></div>` : ''}
-      <div class="rowline"><span class="k">Add-on</span><span class="v">${addons.length ? addons.map(a => esc(a.name) + (a.qty > 1 ? ` ×${a.qty}` : '')).join(', ') : '—'}</span></div>
-      ${b.campus ? `<div class="rowline"><span class="k">Kampus</span><span class="v">${esc(b.campus)}</span></div>` : ''}
-      ${b.outfit_count ? `<div class="rowline"><span class="k">Jumlah outfit</span><span class="v">${b.outfit_count >= 6 ? '6 atau lebih' : b.outfit_count + ' outfit'}</span></div>` : ''}
-      ${b.concept ? `<div class="rowline"><span class="k">Tema / konsep</span><span class="v" style="font-weight:400;max-width:70%">${esc(b.concept)}</span></div>` : ''}
-      ${b.props ? `<div class="rowline"><span class="k">Properti dibawa</span><span class="v" style="font-weight:400;max-width:70%;white-space:pre-line">${esc(b.props)}</span></div>` : ''}
-      ${b.referral_source ? `<div class="rowline"><span class="k">Tahu Kalaatma dari</span><span class="v">${esc(b.referral_source)}</span></div>` : ''}
-      ${b.notes ? `<div class="rowline"><span class="k">Request</span><span class="v" style="font-weight:400;max-width:70%">${esc(b.notes)}</span></div>` : ''}
+      <div style="margin-top:6px">${clientRows(b, addons)}</div>
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
         ${b.whatsapp ? `<a class="btn wa sm" style="text-decoration:none" target="_blank" rel="noopener" href="${clientWaUrl(b)}">WhatsApp Client</a>` : ''}
         <button class="btn soft sm" id="editInfo2">✎ Ubah data</button>
