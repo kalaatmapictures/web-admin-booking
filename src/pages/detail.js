@@ -176,6 +176,9 @@ export function bookingDrawer(id){
       ${ig ? `<div class="rowline"><span class="k">Instagram</span><span class="v">${esc(ig)}</span></div>` : ''}
       ${b.number_of_people ? `<div class="rowline"><span class="k">Jumlah orang</span><span class="v">${b.number_of_people} orang</span></div>` : ''}
       <div class="rowline"><span class="k">Add-on</span><span class="v">${addons.length ? addons.map(a => esc(a.name) + (a.qty > 1 ? ` ×${a.qty}` : '')).join(', ') : '—'}</span></div>
+      ${b.outfit_count ? `<div class="rowline"><span class="k">Jumlah outfit</span><span class="v">${b.outfit_count >= 6 ? '6 atau lebih' : b.outfit_count + ' outfit'}</span></div>` : ''}
+      ${b.concept ? `<div class="rowline"><span class="k">Tema / konsep</span><span class="v" style="font-weight:400;max-width:70%">${esc(b.concept)}</span></div>` : ''}
+      ${b.props ? `<div class="rowline"><span class="k">Properti dibawa</span><span class="v" style="font-weight:400;max-width:70%;white-space:pre-line">${esc(b.props)}</span></div>` : ''}
       ${b.notes ? `<div class="rowline"><span class="k">Request</span><span class="v" style="font-weight:400;max-width:70%">${esc(b.notes)}</span></div>` : ''}
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
         ${b.whatsapp ? `<a class="btn wa sm" style="text-decoration:none" target="_blank" rel="noopener" href="${clientWaUrl(b)}">WhatsApp Client</a>` : ''}
@@ -394,6 +397,14 @@ function editBookingInfo(id){
       </div>
       <div class="fld" style="margin-top:11px"><label>Lokasi</label><input id="eiLoc" value="${esc(b.location||'')}" placeholder="mis. Isola UPI Bandung"></div>
       <div class="fld" style="margin-top:11px"><label>Link titik lokasi (Google Maps)</label><input id="eiMap" value="${esc(b.map_link||'')}" placeholder="https://maps.app.goo.gl/…"></div>
+      <div id="eiPw" ${/prewed/i.test(b.service || '') || b.outfit_count || b.concept || b.props ? '' : 'hidden'}>
+        <div class="mlabel" style="margin-top:16px">Detail prewedding</div>
+        <div class="fgrid two">
+          <div class="fld"><label>Jumlah outfit</label><input id="eiOutfits" type="number" min="1" max="20" value="${b.outfit_count||''}" placeholder="mis. 2"></div>
+          <div class="fld"><label>Tema / konsep</label><input id="eiConcept" value="${esc(b.concept||'')}" placeholder="mis. Casual outdoor"></div>
+        </div>
+        <div class="fld" style="margin-top:11px"><label>List properti (satu per baris)</label><textarea id="eiProps" rows="3">${esc(b.props||'')}</textarea></div>
+      </div>
       <div class="fld" style="margin-top:11px"><label>Catatan / request client</label><textarea id="eiNotes" rows="3">${esc(b.notes||'')}</textarea></div>
       <div id="eiErr" class="fl-err"></div>
     </div>
@@ -407,6 +418,7 @@ function editBookingInfo(id){
          <div class="fld"><label>Instagram</label><input id="eiClientIg" value="${esc(b.client_instagram || b.bride_instagram || '')}" placeholder="@username"></div></div>`;
   };
   paintWho();
+  $('#eiSvc').addEventListener('input', e => { if(/prewed/i.test(e.target.value)) $('#eiPw').hidden = false; });
   $$('[data-eiwho]').forEach(c => c.onclick = () => {
     who = c.dataset.eiwho;
     $$('[data-eiwho]').forEach(x => x.classList.toggle('on', x === c));
@@ -437,6 +449,12 @@ function editBookingInfo(id){
       session_date: v('eiDate'), session_time: v('eiTime') || null, session_end_time: v('eiEnd') || null,
       location: v('eiLoc') || null, map_link: v('eiMap') || null, notes: v('eiNotes') || null
     };
+    if(!$('#eiPw').hidden){
+      const oc = Math.round(Number(v('eiOutfits')));
+      if(v('eiOutfits') && !(oc >= 1 && oc <= 20)) return err('Jumlah outfit antara 1–20.');
+      Object.assign(patch, {outfit_count: oc || null, concept: v('eiConcept') || null,
+        props: v('eiProps').split('\n').map(x => x.trim()).filter(Boolean).join('\n') || null});
+    }
     // kirim hanya yang berubah
     for(const k of Object.keys(patch)) if((b[k] ?? null) === (patch[k] ?? null)) delete patch[k];
     if(!Object.keys(patch).length){ closeModal(); return toast('Tidak ada perubahan'); }

@@ -193,6 +193,9 @@ create table if not exists public.bookings (
 
   constraint bookings_end_after_start check (session_end_time is null or session_end_time > session_time)
 );
+-- detail khusus Prewedding dari form booking (jumlah outfit, tema/konsep, list properti)
+alter table public.bookings add column if not exists outfit_count int check (outfit_count between 1 and 20),
+  add column if not exists concept text, add column if not exists props text;
 create index if not exists bookings_session_date_idx on public.bookings (session_date);
 create index if not exists bookings_status_idx on public.bookings (status);
 
@@ -433,9 +436,64 @@ create index if not exists admin_activity_at_idx on public.admin_activity (at de
 -- VIEW — kolom turunan (total, DP, status bayar, crew, profit) untuk BMS
 -- security_invoker: view tunduk pada RLS tabel di bawahnya.
 -- ---------------------------------------------------------------------
+-- kolom bookings ditulis eksplisit (bukan b.*): kolom baru di tabel ditambahkan di AKHIR view,
+-- supaya file ini aman dijalankan ulang dengan create or replace
 create or replace view public.v_bookings_board with (security_invoker = true) as
 select
-  b.*,
+  b.id,
+  b.created_at,
+  b.updated_at,
+  b.booking_id,
+  b.source,
+  b.status,
+  b.service,
+  b.service_id,
+  b.sub_category,
+  b.package_id,
+  b.package_name,
+  b.package_price,
+  b.add_ons,
+  b.add_on_price,
+  b.number_of_people,
+  b.session_date,
+  b.session_time,
+  b.session_end_time,
+  b.location,
+  b.map_link,
+  b.latitude,
+  b.longitude,
+  b.whatsapp,
+  b.notes,
+  b.estimated_total,
+  b.estimated_dp,
+  b.estimated_remaining,
+  b.bride_name,
+  b.bride_instagram,
+  b.groom_name,
+  b.groom_instagram,
+  b.client_name,
+  b.client_instagram,
+  b.custom_package_price,
+  b.additional_charge,
+  b.extra_time_charge,
+  b.transport_charge,
+  b.other_charge,
+  b.discount,
+  b.hpp_snapshot,
+  b.photographer_id,
+  b.videographer_id,
+  b.needs_photographer,
+  b.needs_videographer,
+  b.crew_override_note,
+  b.photo_drive_link,
+  b.video_drive_link,
+  b.raw_file_link,
+  b.final_file_link,
+  b.delivery_date,
+  b.invoice_number,
+  b.payment_due_date,
+  b.gcal_event_id,
+  b.labels,
   coalesce(b.client_name, nullif(concat_ws(' & ', b.bride_name, b.groom_name), ''), b.booking_id) as client_display,
   c1.eff                                         as effective_package_price,
   b.package_price                                as master_reference_price,
@@ -457,7 +515,8 @@ select
   c1.deliv_missing                               as delivery_missing,
   (b.gcal_event_id is not null)                  as gcal_synced,
   (c1.crew <> 'COMPLETE' or c4.overdue
-     or (b.status in ('EVENT_DONE','DELIVERED') and c1.deliv_missing)) as needs_attention
+     or (b.status in ('EVENT_DONE','DELIVERED') and c1.deliv_missing)) as needs_attention,
+  b.outfit_count, b.concept, b.props
 from public.bookings b
 left join public.freelancers ph on ph.id = b.photographer_id
 left join public.freelancers vg on vg.id = b.videographer_id
@@ -526,7 +585,8 @@ grant insert (booking_id, status, service, service_id, sub_category, package_id,
               add_ons, add_on_price, number_of_people, session_date, session_time, session_end_time,
               location, map_link, latitude, longitude, whatsapp, notes,
               estimated_total, estimated_dp, estimated_remaining,
-              bride_name, bride_instagram, groom_name, groom_instagram, client_name, client_instagram)
+              bride_name, bride_instagram, groom_name, groom_instagram, client_name, client_instagram,
+              outfit_count, concept, props)
   on public.bookings to anon;
 drop policy if exists "publik mengirim booking" on public.bookings;
 create policy "publik mengirim booking" on public.bookings
