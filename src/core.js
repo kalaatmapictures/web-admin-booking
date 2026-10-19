@@ -217,7 +217,7 @@ const FIELD = {
   client_name:'Nama client', bride_name:'Nama wanita', groom_name:'Nama pria', client_instagram:'Instagram', bride_instagram:'Instagram wanita',
   groom_instagram:'Instagram pria', service:'Layanan', package_name:'Paket', number_of_people:'Jumlah orang', session_date:'Tanggal sesi',
   session_time:'Jam mulai', session_end_time:'Jam selesai', location:'Lokasi', map_link:'Titik lokasi', instagram:'Instagram', based_in:'Based',
-  outfit_count:'Jumlah outfit', concept:'Tema / konsep', props:'Properti'
+  outfit_count:'Jumlah outfit', concept:'Tema / konsep', props:'Properti', campus:'Kampus'
 };
 const MONEY_F = new Set(['custom_package_price','additional_charge','extra_time_charge','transport_charge','other_charge','discount','rate','amount','hpp_estimate','estimated_value']);
 const LINK_F = new Set(['photo_drive_link','video_drive_link','raw_file_link','final_file_link','map_link']);
