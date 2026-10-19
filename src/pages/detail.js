@@ -176,6 +176,7 @@ export function bookingDrawer(id){
       ${ig ? `<div class="rowline"><span class="k">Instagram</span><span class="v">${esc(ig)}</span></div>` : ''}
       ${b.number_of_people ? `<div class="rowline"><span class="k">Jumlah orang</span><span class="v">${b.number_of_people} orang</span></div>` : ''}
       <div class="rowline"><span class="k">Add-on</span><span class="v">${addons.length ? addons.map(a => esc(a.name) + (a.qty > 1 ? ` ×${a.qty}` : '')).join(', ') : '—'}</span></div>
+      ${b.campus ? `<div class="rowline"><span class="k">Kampus</span><span class="v">${esc(b.campus)}</span></div>` : ''}
       ${b.outfit_count ? `<div class="rowline"><span class="k">Jumlah outfit</span><span class="v">${b.outfit_count >= 6 ? '6 atau lebih' : b.outfit_count + ' outfit'}</span></div>` : ''}
       ${b.concept ? `<div class="rowline"><span class="k">Tema / konsep</span><span class="v" style="font-weight:400;max-width:70%">${esc(b.concept)}</span></div>` : ''}
       ${b.props ? `<div class="rowline"><span class="k">Properti dibawa</span><span class="v" style="font-weight:400;max-width:70%;white-space:pre-line">${esc(b.props)}</span></div>` : ''}
@@ -397,6 +398,10 @@ function editBookingInfo(id){
       </div>
       <div class="fld" style="margin-top:11px"><label>Lokasi</label><input id="eiLoc" value="${esc(b.location||'')}" placeholder="mis. Isola UPI Bandung"></div>
       <div class="fld" style="margin-top:11px"><label>Link titik lokasi (Google Maps)</label><input id="eiMap" value="${esc(b.map_link||'')}" placeholder="https://maps.app.goo.gl/…"></div>
+      <div id="eiGrad" ${/graduation|wisuda/i.test(b.service || '') || b.campus ? '' : 'hidden'}>
+        <div class="mlabel" style="margin-top:16px">Detail graduation</div>
+        <div class="fld"><label>Kampus / universitas</label><input id="eiCampus" value="${esc(b.campus||'')}" placeholder="mis. Universitas Padjadjaran (UNPAD)"></div>
+      </div>
       <div id="eiPw" ${/prewed/i.test(b.service || '') || b.outfit_count || b.concept || b.props ? '' : 'hidden'}>
         <div class="mlabel" style="margin-top:16px">Detail prewedding</div>
         <div class="fgrid two">
@@ -418,7 +423,10 @@ function editBookingInfo(id){
          <div class="fld"><label>Instagram</label><input id="eiClientIg" value="${esc(b.client_instagram || b.bride_instagram || '')}" placeholder="@username"></div></div>`;
   };
   paintWho();
-  $('#eiSvc').addEventListener('input', e => { if(/prewed/i.test(e.target.value)) $('#eiPw').hidden = false; });
+  $('#eiSvc').addEventListener('input', e => {
+    if(/prewed/i.test(e.target.value)) $('#eiPw').hidden = false;
+    if(/graduation|wisuda/i.test(e.target.value)) $('#eiGrad').hidden = false;
+  });
   $$('[data-eiwho]').forEach(c => c.onclick = () => {
     who = c.dataset.eiwho;
     $$('[data-eiwho]').forEach(x => x.classList.toggle('on', x === c));
@@ -449,6 +457,7 @@ function editBookingInfo(id){
       session_date: v('eiDate'), session_time: v('eiTime') || null, session_end_time: v('eiEnd') || null,
       location: v('eiLoc') || null, map_link: v('eiMap') || null, notes: v('eiNotes') || null
     };
+    if(!$('#eiGrad').hidden) patch.campus = v('eiCampus') || null;
     if(!$('#eiPw').hidden){
       const oc = Math.round(Number(v('eiOutfits')));
       if(v('eiOutfits') && !(oc >= 1 && oc <= 20)) return err('Jumlah outfit antara 1–20.');
