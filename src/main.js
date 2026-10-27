@@ -6,6 +6,7 @@ import { initAuth, initShell, $, S } from './core.js';
 import './pages/dashboard.js';
 import './pages/booking.js';
 import './pages/joblist.js';
+import './pages/task.js';
 import './pages/lead.js';
 import './pages/client.js';
 import './pages/freelancer.js';

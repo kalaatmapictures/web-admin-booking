@@ -73,7 +73,7 @@ export const inRange = (date, r) => !date || ((!r.from || date >= r.from) && (!r
 export const S = {
   page:'dashboard', data:{},
   catalog:null, catalogVersion:null,   // menu landing page (satu sumber harga paket)
-  admin:{ name:'Admin', email:null }
+  admin:{ id:null, name:'Admin', email:null }
 };
 window.S = S;
 export const RENDER = {};
@@ -141,8 +141,33 @@ export async function loadAll(){
     S.data = {bookings: bookings.map(normBooking), freelancers, payments, leads, clients, transactions, crewFees:[], activity,
               packageCosts: Object.fromEntries(costs.map(c => [c.package_id, c.hpp_estimate]))};
   }
+  await loadTasks();
   buildPackages();
   refreshBell();
+}
+
+/* Task board dimuat terpisah: bila schema.sql terbaru belum dijalankan,
+   halaman lain tetap jalan dan halaman Task menampilkan petunjuk. */
+export async function loadTasks(){
+  try{
+    const [boards, lists, tasks, templates, comments, admins] = await Promise.all([
+      api('task_boards?select=*&order=position'), api('task_lists?select=*&order=position'),
+      api('tasks?select=*&order=position'), api('task_templates?select=*&order=position'),
+      api('task_comments?select=*&order=at'), api('admins?select=user_id,name&order=name')
+    ]);
+    Object.assign(S.data, {taskBoards:boards, taskLists:lists, tasks, taskTemplates:templates, taskComments:comments, admins, tasksReady:true});
+  }catch(e){
+    console.warn('[Kalaatma] task board belum siap:', e.message);
+    Object.assign(S.data, {taskBoards:[], taskLists:[], tasks:[], taskTemplates:[], taskComments:[], admins:[], tasksReady:false});
+  }
+}
+/* tugas satu booking dimuat ulang setelah trigger database membuat/mengubahnya */
+async function reloadBookingTasks(id){
+  if(!S.data.tasksReady) return;
+  try{
+    const rows = await api('tasks?select=*&order=position&booking_id=eq.' + id);
+    S.data.tasks = S.data.tasks.filter(t => t.booking_id !== id).concat(rows);
+  }catch(e){ console.warn('[Kalaatma] gagal memuat tugas booking:', e.message); }
 }
 
 /* ---------- log aktivitas admin ---------- */
@@ -155,7 +180,9 @@ const FIELD = {
   delivery_date:'Tanggal delivery', labels:'Label', payment_due_date:'Jatuh tempo',
   rate:'Rate', rate_type:'Tipe rate', gear:'Gear', is_active:'Aktif',
   kind:'Jenis', amount:'Jumlah', category:'Kategori', description:'Deskripsi', occurred_on:'Tanggal', booking_id:'Project',
-  hpp_estimate:'HPP'
+  hpp_estimate:'HPP',
+  title:'Judul', list_id:'Kolom', due_date:'Deadline', priority:'Prioritas', done:'Selesai',
+  assignee_freelancer_id:'PIC', assignee_admin_id:'PIC admin', name:'Nama'
 };
 const MONEY_F = new Set(['custom_package_price','additional_charge','extra_time_charge','transport_charge','other_charge','discount','rate','amount','hpp_estimate']);
 const LINK_F = new Set(['photo_drive_link','video_drive_link','raw_file_link','final_file_link']);
@@ -165,6 +192,9 @@ function fmtField(k, v){
   if(LINK_F.has(k)) return 'terisi';
   if(k === 'photographer_id' || k === 'videographer_id') return S.data.freelancers.find(f => f.id === v)?.name || '—';
   if(k === 'booking_id') return S.data.bookings.find(b => b.id === v)?.client_display || '—';
+  if(k === 'list_id') return S.data.taskLists?.find(l => l.id === v)?.name || '—';
+  if(k === 'assignee_freelancer_id') return S.data.freelancers.find(f => f.id === v)?.name || '—';
+  if(k === 'assignee_admin_id') return S.data.admins?.find(a => a.user_id === v)?.name || '—';
   if(typeof v === 'boolean') return v ? 'Ya' : 'Tidak';
   if(Array.isArray(v)) return v.length ? v.join(', ') : '—';
   return String(v);
@@ -198,6 +228,8 @@ export async function saveBooking(id, patch){
   if(i>-1 && fresh[0]) S.data.bookings[i] = normBooking(fresh[0]);
   const detail = describe(before, patch);
   if(detail) await logAct(patch.status && patch.status !== before?.status ? 'status' : 'update', 'Booking', before?.client_display, detail);
+  // status & crew memicu pembuatan/penugasan tugas di database
+  if('status' in patch || 'photographer_id' in patch || 'videographer_id' in patch) await reloadBookingTasks(id);
   refreshBell();
 }
 export async function addPayment(bookingId, row){
@@ -289,7 +321,7 @@ async function resolveAdmin(){
   if(!user) return 'login';
   const rows = await api(`admins?user_id=eq.${user.id}&select=name`);
   if(!rows.length){ await sb.auth.signOut(); return 'Akun ini belum terdaftar sebagai admin.'; }
-  S.admin = { name: rows[0].name || user.email, email: user.email };
+  S.admin = { id: user.id, name: rows[0].name || user.email, email: user.email };
   return null;
 }
 function showLoginError(msg){
@@ -361,12 +393,14 @@ const ICONS = {
   menu:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 8h10M7 12h10M7 16h6"/>',
   kas:'<rect x="2" y="6" width="20" height="13" rx="3"/><path d="M2 11h20"/><circle cx="17" cy="15" r="1.4"/>',
   calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 11h18"/><circle cx="8.5" cy="15.5" r="1.2"/><circle cx="12" cy="15.5" r="1.2"/>',
-  activity:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  activity:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  task:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/>'
 };
 export const PAGES = [
   {id:'dashboard',  label:'Dashboard', title:'Dashboard'},
   {id:'booking',    label:'Booking',   title:'Booking'},
   {id:'joblist',    label:'Joblist',   title:'Joblist'},
+  {id:'task',       label:'Task',      title:'Task Board'},
   {id:'lead',       label:'Lead',      title:'Lead'},
   {id:'client',     label:'Client',    title:'Completed Client'},
   {id:'freelancer', label:'Freelancer',title:'Freelancer'},
@@ -404,12 +438,17 @@ export function refreshBell(){
   el.textContent = n; el.classList.toggle('hide', n === 0);
   const badge = $('[data-badge="booking"]');
   if(badge){ badge.textContent = n; badge.classList.toggle('hide', n === 0); }
+  // tugas lewat deadline (booking batal tidak dihitung)
+  const t = today(), cancelled = new Set((S.data.bookings||[]).filter(b => b.status === 'CANCELLED').map(b => b.id));
+  const late = (S.data.tasks||[]).filter(x => !x.done && x.due_date && x.due_date < t && !cancelled.has(x.booking_id)).length;
+  const tb = $('[data-badge="task"]');
+  if(tb){ tb.textContent = late; tb.classList.toggle('hide', late === 0); }
 }
 
 /* drawer & modal plumbing */
 export function openDrawer(html){ $('#drawerBody').innerHTML = html; $('#drawer').classList.add('open'); }
 export function closeDrawer(){ $('#drawer').classList.remove('open'); }
-export function openModal(html){ $('#modalBody').innerHTML = html; $('#modal').classList.add('open'); }
+export function openModal(html){ $('#modalBody').innerHTML = html; $('#modalBody').className = 'box'; $('#modal').classList.add('open'); }
 export function closeModal(){ $('#modal').classList.remove('open'); }
 export function initShell(){
   $('#bellBtn').onclick = () => showNotifications();

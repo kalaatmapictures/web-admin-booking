@@ -7,6 +7,9 @@ import { $, $$, S, F, RENDER, rp, esc, today, fmtDate, timeRange, initials, toas
          BOOKING_STATUSES, dpPercent } from '../core.js';
 
 const rerender = () => RENDER[S.page]();
+/* bagian tambahan drawer yang didaftarkan halaman lain (mis. Task Board),
+   supaya detail.js tidak perlu meng-import mereka (core.js ↔ detail.js sudah melingkar) */
+export const DRAWER_SECTIONS = [];
 /* jalankan aksi tulis; tampilkan galat tanpa membuat UI macet */
 async function safely(fn){
   try{ await fn(); return true; }
@@ -130,6 +133,8 @@ export function bookingDrawer(id){
         <select id="dbStatus">${BOOKING_STATUSES.map(s=>`<option ${b.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
     </div>
 
+    ${DRAWER_SECTIONS.map(x => x.html(b)).join('')}
+
     <div class="card" style="margin-bottom:13px">
       <b style="font-size:13px">Data dari client</b>
       <div class="rowline" style="margin-top:6px"><span class="k">WhatsApp</span><span class="v">${esc(b.whatsapp||'—')}</span></div>
@@ -199,6 +204,8 @@ export function bookingDrawer(id){
       <button class="btn block" id="openInv">Lihat Invoice</button>
       <button class="btn soft block" id="dlInvDirect">Unduh Invoice PDF</button>
     </div>`);
+
+  DRAWER_SECTIONS.forEach(x => x.bind(b, () => { bookingDrawer(id); rerender(); }));
 
   // pricing
   const inputs = {

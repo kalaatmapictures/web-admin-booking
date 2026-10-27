@@ -385,13 +385,240 @@ select l.*,
 from public.leads l;
 
 -- ---------------------------------------------------------------------
+-- TASK BOARD (ala Trello) — board → kolom (list) → kartu tugas.
+-- Sinkron dengan Joblist: setiap kali booking masuk ke tahap baru
+-- (Booking, Onboarding, Event, Delivery, Done), tugas SOP tahap itu
+-- dibuat otomatis di board project dari tabel task_templates.
+-- ---------------------------------------------------------------------
+create table if not exists public.task_boards (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  color      text not null default '#4A46E0',
+  position   double precision not null default 0,
+  is_project boolean not null default false,       -- tugas otomatis dari Joblist masuk ke board ini
+  labels     jsonb not null default '[]',           -- [{id, name, color}]
+  created_at timestamptz not null default now()
+);
+create unique index if not exists task_boards_one_project on public.task_boards (is_project) where is_project;
+
+create table if not exists public.task_lists (
+  id         uuid primary key default gen_random_uuid(),
+  board_id   uuid not null references public.task_boards (id) on delete cascade,
+  name       text not null,
+  position   double precision not null default 0,
+  is_done    boolean not null default false,        -- kartu di kolom ini dihitung selesai
+  created_at timestamptz not null default now()
+);
+create index if not exists task_lists_board_idx on public.task_lists (board_id);
+
+-- SOP per tahap Joblist — bisa diubah dari halaman Task → Template SOP
+create table if not exists public.task_templates (
+  id          uuid primary key default gen_random_uuid(),
+  stage       text not null check (stage in ('BOOKING','ONBOARDING','EVENT','DELIVERY','DONE')),
+  title       text not null,
+  description text,
+  checklist   jsonb not null default '[]',          -- ["langkah 1", "langkah 2"]
+  role        text check (role in ('PHOTOGRAPHER','VIDEOGRAPHER')),   -- otomatis ditugaskan ke crew booking
+  due_anchor  text not null default 'STAGE' check (due_anchor in ('STAGE','SESSION')),
+  due_offset  integer,                               -- hari dari masuk tahap / dari tanggal sesi; null = tanpa deadline
+  priority    text not null default 'NORMAL' check (priority in ('LOW','NORMAL','HIGH','URGENT')),
+  position    double precision not null default 0,
+  is_active   boolean not null default true,
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists public.tasks (
+  id                     uuid primary key default gen_random_uuid(),
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now(),
+  board_id               uuid not null references public.task_boards (id) on delete cascade,
+  list_id                uuid not null references public.task_lists (id) on delete cascade,
+  position               double precision not null default 0,
+  title                  text not null,
+  description            text,
+  booking_id             uuid references public.bookings (id) on delete cascade,
+  stage                  text,                       -- tahap Joblist asal tugas otomatis
+  template_id            uuid references public.task_templates (id) on delete set null,
+  role                   text,
+  assignee_freelancer_id uuid references public.freelancers (id) on delete set null,
+  assignee_admin_id      uuid references public.admins (user_id) on delete set null,
+  due_date               date,
+  priority               text not null default 'NORMAL' check (priority in ('LOW','NORMAL','HIGH','URGENT')),
+  labels                 text[] not null default '{}',
+  checklist              jsonb not null default '[]', -- [{id, text, done}]
+  done                   boolean not null default false,
+  done_at                timestamptz
+);
+create index if not exists tasks_list_idx on public.tasks (list_id, position);
+create index if not exists tasks_booking_idx on public.tasks (booking_id);
+-- satu template hanya sekali per booking, walau booking bolak-balik antar tahap
+create unique index if not exists tasks_booking_template_uq on public.tasks (booking_id, template_id)
+  where booking_id is not null and template_id is not null;
+
+create table if not exists public.task_comments (
+  id        uuid primary key default gen_random_uuid(),
+  task_id   uuid not null references public.tasks (id) on delete cascade,
+  author_id uuid not null default auth.uid() references auth.users (id),
+  author    text not null,
+  body      text not null,
+  at        timestamptz not null default now()
+);
+create index if not exists task_comments_task_idx on public.task_comments (task_id);
+
+create or replace function public.tasks_touch()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at := now();
+  if new.done and (tg_op = 'INSERT' or not old.done) then new.done_at := now(); end if;
+  if not new.done then new.done_at := null; end if;
+  return new;
+end $$;
+drop trigger if exists tasks_touch on public.tasks;
+create trigger tasks_touch before insert or update on public.tasks
+  for each row execute function public.tasks_touch();
+
+/* Tahap Joblist dari status booking — sama dengan STAGES di src/stages.js */
+create or replace function public.booking_stage(status text)
+returns text language sql immutable as $$
+  select case
+    when status in ('NEW','CONTACTED','WAITING_DP') then 'BOOKING'
+    when status = 'CONFIRMED'                       then 'ONBOARDING'
+    when status = 'BOOKED'                          then 'EVENT'
+    when status in ('EVENT_DONE','DELIVERED')       then 'DELIVERY'
+    when status = 'COMPLETED'                       then 'DONE'
+  end
+$$;
+
+/* Buat tugas SOP tahap booking saat ini di kolom pertama board project */
+create or replace function public.seed_stage_tasks(b public.bookings)
+returns void language plpgsql security definer set search_path = public as $$
+declare st text; brd uuid; lst uuid; base double precision;
+begin
+  st := booking_stage(b.status);
+  if st is null then return; end if;
+  select id into brd from task_boards where is_project limit 1;
+  if brd is null then return; end if;
+  select id into lst from task_lists where board_id = brd and not is_done order by position limit 1;
+  if lst is null then return; end if;
+  select coalesce(max(position), 0) into base from tasks where list_id = lst;
+
+  insert into tasks (board_id, list_id, position, title, description, booking_id, stage, template_id,
+                     role, assignee_freelancer_id, due_date, priority, checklist)
+  select brd, lst, base + row_number() over (order by t.position, t.created_at),
+         t.title, t.description, b.id, st, t.id, t.role,
+         case t.role when 'PHOTOGRAPHER' then b.photographer_id when 'VIDEOGRAPHER' then b.videographer_id end,
+         case when t.due_offset is null then null
+              when t.due_anchor = 'SESSION' then b.session_date + t.due_offset
+              else today_wib() + t.due_offset end,
+         t.priority,
+         (select coalesce(jsonb_agg(jsonb_build_object('id', gen_random_uuid(), 'text', x, 'done', false)), '[]')
+            from jsonb_array_elements_text(t.checklist) x)
+    from task_templates t
+   where t.stage = st and t.is_active
+  on conflict (booking_id, template_id) where booking_id is not null and template_id is not null do nothing;
+end $$;
+
+/* Joblist → Task: tahap baru = tugas baru; crew diganti = tugas crew ikut pindah */
+create or replace function public.bookings_sync_tasks()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' or new.status is distinct from old.status then
+    perform seed_stage_tasks(new);
+  end if;
+  if tg_op = 'UPDATE' then
+    if new.photographer_id is distinct from old.photographer_id then
+      update tasks set assignee_freelancer_id = new.photographer_id
+       where booking_id = new.id and role = 'PHOTOGRAPHER' and not done
+         and (assignee_freelancer_id is null or assignee_freelancer_id = old.photographer_id);
+    end if;
+    if new.videographer_id is distinct from old.videographer_id then
+      update tasks set assignee_freelancer_id = new.videographer_id
+       where booking_id = new.id and role = 'VIDEOGRAPHER' and not done
+         and (assignee_freelancer_id is null or assignee_freelancer_id = old.videographer_id);
+    end if;
+  end if;
+  return null;
+end $$;
+/* tombol "Terapkan SOP" di detail booking: lengkapi tugas tahap saat ini */
+create or replace function public.apply_stage_tasks(p_booking uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not is_admin() then raise exception 'Hanya admin' using errcode = '42501'; end if;
+  perform seed_stage_tasks(b) from bookings b where b.id = p_booking;
+end $$;
+revoke execute on function public.seed_stage_tasks(public.bookings) from public, anon, authenticated;
+revoke execute on function public.apply_stage_tasks(uuid) from public, anon;
+grant execute on function public.apply_stage_tasks(uuid) to authenticated;
+
+drop trigger if exists bookings_tasks on public.bookings;
+create trigger bookings_tasks after insert or update on public.bookings
+  for each row execute function public.bookings_sync_tasks();
+
+/* Board, kolom, label, dan SOP bawaan — hanya diisi bila masih kosong */
+do $$
+declare brd uuid;
+begin
+  if not exists (select 1 from public.task_boards) then
+    insert into public.task_boards (name, color, position, is_project, labels)
+    values ('Produksi Project', '#4A46E0', 1, true,
+      '[{"id":"urgent","name":"Urgent","color":"red"},{"id":"client","name":"Client","color":"blue"},
+        {"id":"crew","name":"Crew","color":"teal"},{"id":"editing","name":"Editing","color":"orange"},
+        {"id":"finance","name":"Keuangan","color":"green"}]')
+    returning id into brd;
+    insert into public.task_lists (board_id, name, position, is_done) values
+      (brd, 'To Do', 1, false), (brd, 'Dikerjakan', 2, false), (brd, 'Review', 3, false), (brd, 'Selesai', 4, true);
+
+    insert into public.task_boards (name, color, position, labels)
+    values ('Marketing & Konten', '#E8951F', 2,
+      '[{"id":"ig","name":"Instagram","color":"orange"},{"id":"tiktok","name":"TikTok","color":"teal"},
+        {"id":"ads","name":"Iklan","color":"red"},{"id":"vendor","name":"Kolaborasi","color":"blue"}]')
+    returning id into brd;
+    insert into public.task_lists (board_id, name, position, is_done) values
+      (brd, 'Ide', 1, false), (brd, 'Produksi Konten', 2, false), (brd, 'Terjadwal', 3, false), (brd, 'Terbit', 4, true);
+
+    insert into public.task_boards (name, color, position, labels)
+    values ('Operasional Studio', '#137285', 3,
+      '[{"id":"gear","name":"Gear","color":"teal"},{"id":"admin","name":"Admin","color":"grey"},
+        {"id":"finance","name":"Keuangan","color":"green"}]')
+    returning id into brd;
+    insert into public.task_lists (board_id, name, position, is_done) values
+      (brd, 'To Do', 1, false), (brd, 'Dikerjakan', 2, false), (brd, 'Selesai', 3, true);
+  end if;
+
+  if not exists (select 1 from public.task_templates) then
+    insert into public.task_templates (stage, title, checklist, role, due_anchor, due_offset, priority, position) values
+      ('BOOKING',    'Follow up client via WhatsApp',          '["Sapa & ucapkan terima kasih","Konfirmasi tanggal, jam, lokasi","Jawab pertanyaan paket"]', null, 'STAGE', 0, 'HIGH', 1),
+      ('BOOKING',    'Kirim invoice & tagih DP',               '["Kirim invoice","Kirim nomor rekening","Ingatkan batas waktu DP"]', null, 'STAGE', 1, 'HIGH', 2),
+      ('BOOKING',    'Catat DP masuk & konfirmasi booking',    '[]', null, 'STAGE', 3, 'NORMAL', 3),
+      ('ONBOARDING', 'Pastikan crew lengkap',                  '["Photographer","Videographer","Kirim brief assignment ke crew"]', null, 'STAGE', 1, 'HIGH', 1),
+      ('ONBOARDING', 'Briefing konsep dengan client',          '["Moodboard / referensi","Rundown acara","Daftar foto wajib (must-have shots)","Kontak PIC di lokasi"]', null, 'SESSION', -14, 'NORMAL', 2),
+      ('ONBOARDING', 'Survey / konfirmasi lokasi',             '["Cek titik lokasi","Cek izin & biaya lokasi","Cek parkir & akses"]', null, 'SESSION', -7, 'NORMAL', 3),
+      ('EVENT',      'Persiapan gear foto',                    '["Charge baterai","Format memory card","Bersihkan lensa","Cek lighting"]', 'PHOTOGRAPHER', 'SESSION', -1, 'HIGH', 1),
+      ('EVENT',      'Persiapan gear video',                   '["Charge baterai","Format memory card","Cek audio / mic","Cek gimbal / drone"]', 'VIDEOGRAPHER', 'SESSION', -1, 'HIGH', 2),
+      ('EVENT',      'Konfirmasi ulang H-1 ke client & crew',  '["Jam kumpul crew","Titik lokasi","Kontak PIC"]', null, 'SESSION', -1, 'HIGH', 3),
+      ('EVENT',      'Backup file mentah setelah sesi',        '["Backup ke hardisk","Upload raw ke Drive","Isi link raw di booking"]', 'PHOTOGRAPHER', 'SESSION', 1, 'URGENT', 4),
+      ('DELIVERY',   'Culling foto',                           '[]', 'PHOTOGRAPHER', 'STAGE', 3, 'NORMAL', 1),
+      ('DELIVERY',   'Editing foto',                           '["Color grading","Retouch foto pilihan","Export & cek kualitas"]', null, 'STAGE', 10, 'NORMAL', 2),
+      ('DELIVERY',   'Editing video',                          '["Rough cut","Musik & color grading","Revisi client"]', 'VIDEOGRAPHER', 'STAGE', 14, 'NORMAL', 3),
+      ('DELIVERY',   'Upload hasil & isi link deliverable',    '["Upload foto final","Upload video final","Isi link di detail booking","Kirim link ke client"]', null, 'STAGE', 14, 'HIGH', 4),
+      ('DELIVERY',   'Tagih pelunasan',                        '[]', null, 'STAGE', 14, 'HIGH', 5),
+      ('DONE',       'Minta testimoni & review Google',        '["Kirim link review Google","Minta izin posting portofolio"]', null, 'STAGE', 3, 'NORMAL', 1),
+      ('DONE',       'Arsip file project',                     '["Pindahkan ke hardisk arsip","Hapus file sementara"]', null, 'STAGE', 14, 'LOW', 2);
+
+    -- booking yang sedang berjalan langsung mendapat tugas tahapnya
+    perform public.seed_stage_tasks(b) from public.bookings b where b.status not in ('COMPLETED','CANCELLED');
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
 -- HAK AKSES (RLS + grant)
 -- ---------------------------------------------------------------------
 -- tabel internal: hanya admin, lewat login
 do $$
 declare t text;
 begin
-  foreach t in array array['admins','package_costs','freelancers','payments','crew_fees','transactions','leads','clients'] loop
+  foreach t in array array['admins','package_costs','freelancers','payments','crew_fees','transactions','leads','clients',
+                           'task_boards','task_lists','task_templates','tasks','task_comments'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon', t);
     execute format('drop policy if exists "admin penuh" on public.%I', t);

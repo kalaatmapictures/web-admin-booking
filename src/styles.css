@@ -513,3 +513,119 @@ body.saving #page{pointer-events:none;opacity:.7;transition:opacity .2s}
   #invoiceDoc{padding:0!important;border-radius:0!important}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- TASK BOARD (ala Trello) ---------- */
+.tk-filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:center;margin-bottom:14px;padding:14px}
+@media(max-width:900px){ .tk-filters{grid-template-columns:1fr 1fr} .tk-filters .fld:first-child{grid-column:1 / -1} }
+.tk-filters .fld input,.tk-filters .fld select{padding:9px 12px;font-size:13px}
+.tk-toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.tk-toggle input{width:16px;height:16px;accent-color:var(--primary)}
+.tk-kpi{cursor:pointer;transition:transform .2s var(--ease),box-shadow .2s}
+.tk-kpi:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+.tk-bdot{display:inline-block;width:8px;height:8px;border-radius:99px;margin-right:7px;vertical-align:1px}
+.chip.on .tk-bdot{box-shadow:0 0 0 2px rgba(255,255,255,.7)}
+
+.tk-wrap{display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;align-items:flex-start;-webkit-overflow-scrolling:touch}
+.tk-col{flex:0 0 284px;min-width:284px;background:rgba(255,255,255,.62);border-radius:var(--r);padding:12px;transition:background .2s,outline .2s;outline:2px solid transparent}
+.tk-col.over{background:var(--tint-2);outline-color:var(--primary)}
+.tk-col-add{background:transparent;padding:0}
+.tk-h{display:flex;align-items:center;gap:7px;padding:2px 2px 11px}
+.tk-h .t{font-size:11.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tk-h .c{margin-left:auto;background:var(--tint);color:var(--primary);border-radius:99px;padding:1px 9px;font-size:11px;font-weight:700}
+.tk-more{width:26px;height:26px;border-radius:8px;color:var(--muted);font-size:15px;line-height:1;flex:0 0 auto}
+.tk-more:hover{background:var(--tint);color:var(--primary)}
+.tk-list{display:grid;gap:9px;min-height:40px}
+.tk-card{background:var(--surface);border-radius:14px;padding:11px 12px;box-shadow:var(--shadow);cursor:pointer;transition:transform .2s var(--ease),box-shadow .2s,opacity .2s}
+.tk-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.tk-card.dragging{opacity:.42;transform:rotate(-1.5deg)}
+.tk-card.done .tk-t span{color:var(--muted);text-decoration:line-through}
+.tk-card .lbs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+.tk-card .lbs:empty{display:none}
+.tk-t{display:flex;gap:8px;align-items:flex-start;font-size:13px;font-weight:600;line-height:1.35}
+.tk-t span{min-width:0;overflow-wrap:anywhere}
+.tk-chk{width:19px;height:19px;border-radius:6px;flex:0 0 auto;box-shadow:inset 0 0 0 2px #CDD1EC;color:transparent;display:grid;place-items:center;transition:all .18s;margin-top:1px}
+.tk-chk svg{width:12px;height:12px}
+.tk-chk:hover{box-shadow:inset 0 0 0 2px var(--ok);color:var(--ok)}
+.tk-chk.on{background:var(--ok);box-shadow:none;color:#fff}
+.tk-chk.big{width:26px;height:26px;border-radius:8px;margin-top:4px}
+.tk-chk.big svg{width:15px;height:15px}
+.tk-proj{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;font-weight:600;color:var(--ink-2);background:var(--bg);border-radius:8px;padding:4px 8px;max-width:100%;text-align:left}
+.tk-proj:hover{background:var(--tint);color:var(--primary)}
+.tk-proj .dot,.tk-projbox .dot{width:8px;height:8px;border-radius:99px;flex:0 0 auto}
+.tk-meta{display:flex;align-items:center;gap:9px;margin-top:9px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.tk-meta:empty{display:none}
+.tk-meta .mi{display:inline-flex;align-items:center;gap:3px}
+.tk-meta .mi.ok{color:var(--ok);font-weight:600}
+.tk-meta svg{width:13px;height:13px}
+.tk-due{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--bg-2);color:var(--ink-2);white-space:nowrap}
+.tk-due svg{width:12px;height:12px}
+.tk-due.late{background:var(--err-bg);color:#C13A40}
+.tk-due.today{background:var(--warn-bg);color:#A96C11}
+.tk-due.soon{background:#FFF7E8;color:#B0700F}
+.tk-due.ok{background:var(--ok-bg);color:#128463}
+.tk-av{width:24px;height:24px;border-radius:8px;background:var(--tint);color:var(--primary);display:grid;place-items:center;font-size:9.5px;font-weight:700;flex:0 0 auto;margin-left:auto}
+.feed-i .tk-av{margin-left:0;width:30px;height:30px;font-size:10.5px}
+.tk-av.none{background:var(--err-bg);color:#C13A40}
+.tk-add{width:100%;margin-top:9px;padding:9px;border-radius:12px;font-size:12.5px;font-weight:600;color:var(--muted);text-align:left;transition:all .18s}
+.tk-add:hover{background:var(--tint);color:var(--primary)}
+.tk-col-add .tk-add{margin-top:0;background:rgba(255,255,255,.45);border:2px dashed var(--tint-2);text-align:center;padding:13px}
+.tk-new{margin-top:9px}
+.tk-new textarea{width:100%;border:2px solid var(--primary);border-radius:12px;padding:9px 11px;font-size:13px;resize:none;background:#fff}
+.tk-new textarea:focus{outline:none}
+.tk-new-a{display:flex;gap:6px;margin-top:6px}
+.tk-new-a .btn{box-shadow:none}
+
+/* progres tugas di kartu Joblist */
+.tk-prog{display:block;width:100%;text-align:left;margin-top:9px;font-size:11px;font-weight:600;padding:5px 9px;border-radius:9px;background:var(--tint);color:var(--primary);transition:all .18s}
+.tk-prog:hover{background:var(--primary);color:#fff}
+.tk-prog.ok{background:var(--ok-bg);color:#128463}
+.tk-prog.late{background:var(--err-bg);color:#C13A40}
+td .tk-prog{display:inline-block;width:auto;margin:0;white-space:nowrap}
+
+/* detail kartu */
+.modal .box.wide{max-width:860px}
+.tk-detail{text-align:left}
+.tk-dh{display:flex;gap:12px;align-items:flex-start;margin-bottom:16px}
+.tk-title-in{width:100%;border:2px solid transparent;border-radius:10px;padding:2px 6px;margin-left:-6px;font-size:19px;font-weight:700;letter-spacing:-.02em;resize:none;overflow:hidden;line-height:1.3;background:transparent}
+.tk-title-in:hover{background:var(--bg)}
+.tk-title-in:focus{outline:none;border-color:var(--primary);background:#fff}
+.tk-x{width:36px;height:36px;border-radius:12px;background:var(--bg);color:var(--muted);flex:0 0 auto;font-size:15px}
+.tk-dgrid{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:22px}
+@media(max-width:720px){ .tk-dgrid{grid-template-columns:1fr} .tk-dside{order:-1} }
+.tk-dside{display:grid;gap:11px;align-content:start}
+.tk-dside .fld select,.tk-dside .fld input{padding:9px 11px;font-size:13px}
+.tk-projbox{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:var(--r-sm);background:var(--bg);margin-bottom:16px}
+.tk-projbox b{font-size:13.5px}
+.tk-cl{display:grid;gap:2px;margin-top:8px}
+.tk-cli{display:flex;align-items:center;gap:10px;padding:6px 4px;border-radius:9px;font-size:13px}
+.tk-cli:hover{background:var(--bg)}
+.tk-cli input{width:17px;height:17px;accent-color:var(--ok);flex:0 0 auto}
+.tk-cli span{flex:1;min-width:0}
+.tk-cli.on span{color:var(--muted);text-decoration:line-through}
+.tk-cli .ibtn{opacity:0}
+.tk-cli:hover .ibtn{opacity:1}
+.btn.danger-soft{background:var(--err-bg);color:#C13A40;box-shadow:none}
+.btn.danger-soft:hover{background:var(--err);color:#fff}
+.tk-swatches{display:flex;gap:8px;flex-wrap:wrap}
+.tk-sw{width:30px;height:30px;border-radius:10px;transition:transform .15s}
+.tk-sw.on{box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ink)}
+.tk-lbl-ed{display:grid;gap:7px}
+.tk-lbl-row{display:grid;grid-template-columns:1fr 100px auto auto;gap:7px;align-items:center}
+.tk-lbl-row input,.tk-lbl-row select{padding:8px 10px!important;font-size:13px!important}
+
+/* template SOP */
+.tk-tpl-sec{margin-top:16px;text-align:left}
+.tk-tpl-h{display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1.5px solid var(--line)}
+.tk-tpl-h .dot{width:9px;height:9px;border-radius:99px}
+.tk-tpl-h b{font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.tk-tpl-h .c{background:var(--tint);color:var(--primary);border-radius:99px;padding:0 8px;font-size:11px;font-weight:700}
+.tk-tpl{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1.5px dashed var(--line)}
+.tk-tpl.off .tname{color:#A9AED0}
+
+/* tugas di detail booking */
+.tk-row{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1.5px dashed var(--line)}
+.tk-dgroup .tk-row:last-child{border-bottom:0}
+.tk-row-t{flex:1;min-width:0;text-align:left;font-size:13px;font-weight:500;line-height:1.35}
+.tk-row-t:hover{color:var(--primary)}
+.tk-row.done .tk-row-t{color:var(--muted);text-decoration:line-through}
+.tk-row .tk-av{margin-left:0}

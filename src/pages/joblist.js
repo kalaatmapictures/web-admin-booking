@@ -7,6 +7,7 @@ import { $, $$, S, F, RENDER, rp, esc, today, inRange, fmtDate, initials, toast,
 import { STAGES, stageOf, stageIx, catGroups, catGroup, PAY_LABELS, payLabel, MANUAL_LABELS, labelChips } from '../stages.js';
 import { calLabel, dateButton, bindDateButton } from '../datepicker.js';
 import { bookingDrawer } from './detail.js';
+import { stageProgress, openProjectTasks } from './task.js';
 
 const JB = { view:'card', drag:null, sort:'nearest', cat:'ALL', from:null, to:null, monthLabel:null };
 
@@ -44,6 +45,17 @@ async function moveStage(id, target){
   RENDER.joblist();
 }
 
+/* progres tugas tahap ini dari Task Board — klik untuk membuka tugasnya */
+function taskChip(b){
+  if(!S.data.tasksReady) return '';
+  const p = stageProgress(b);
+  if(!p.total) return '';
+  const all = p.done === p.total;
+  const next = STAGES[stageIx(p.stage) + 1];
+  return `<button class="tk-prog ${all?'ok':p.late?'late':''}" data-jbtasks="${b.id}" title="Buka tugas di Task Board">
+    ☑ ${p.done}/${p.total} tugas${p.late ? ` · ${p.late} telat` : ''}${all && next ? ` · siap ke ${next.label}` : ''}</button>`;
+}
+
 function jbCard(b){
   const st = stageOf(b), i = stageIx(st);
   const crew = [
@@ -62,6 +74,7 @@ function jbCard(b){
       <span class="tot">${rp(b.total_invoice)}</span>
     </div>
     <div class="jb-crew">${crew}</div>
+    ${taskChip(b)}
     <div class="jb-foot">
       <button data-jbmove="${b.id}" data-dir="-1" ${i<=0?'disabled':''} title="Pindah ke kiri">‹</button>
       <button data-jbmove="${b.id}" data-dir="1" ${i>=STAGES.length-1?'disabled':''} title="Pindah ke kanan">›</button>
@@ -142,13 +155,14 @@ RENDER.joblist = () => {
           <span class="t">${s.label}</span><span class="c">${rows.length}</span>
         </div>
         ${rows.length ? `<div class="card"><div class="tablewrap"><table>
-          <thead><tr><th>Client</th><th>Label</th><th>Tanggal</th><th>Crew</th><th class="r">Total</th><th class="r">Pindah</th></tr></thead>
+          <thead><tr><th>Client</th><th>Label</th><th>Tanggal</th><th>Crew</th><th>Tugas</th><th class="r">Total</th><th class="r">Pindah</th></tr></thead>
           <tbody>${rows.map(b => `<tr>
             <td><div class="tname" data-jbopen="${b.id}" style="cursor:pointer">${esc(b.client_display)}</div>
                 <div class="tsub">${esc(b.service)} · ${esc(b.package_name)}</div></td>
             <td><div class="lbs">${labelChips(b)}</div></td>
             <td>${fmtDate(b.session_date)}</td>
             <td>${crewBadge(b.crew_status)}</td>
+            <td>${taskChip(b) || '<span class="tsub">—</span>'}</td>
             <td class="r num" style="font-weight:600">${rp(b.total_invoice)}</td>
             <td class="r"><div style="display:inline-flex;gap:5px">
               <button class="btn soft sm" data-jbmove="${b.id}" data-dir="-1" ${stageIx(s.id)<=0?'disabled':''}>‹</button>
@@ -170,6 +184,7 @@ RENDER.joblist = () => {
     document.querySelector(`[data-stage="${b.dataset.jbjump}"]`)?.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
   });
   $$('[data-jbopen]').forEach(b => b.onclick = e => { e.stopPropagation(); bookingDrawer(b.dataset.jbopen); });
+  $$('[data-jbtasks]').forEach(b => b.onclick = e => { e.stopPropagation(); openProjectTasks(b.dataset.jbtasks); });
   $$('[data-jbmove]').forEach(b => b.onclick = e => {
     e.stopPropagation();
     const bk = S.data.bookings.find(x => x.id === b.dataset.jbmove);
