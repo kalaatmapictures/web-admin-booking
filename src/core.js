@@ -352,6 +352,7 @@ async function start(){
    ===================================================================== */
 const ICONS = {
   dashboard:'<path d="M3 12h7V3H3zM14 8h7V3h-7zM14 21h7v-9h-7zM3 21h7v-5H3z"/>',
+  ads:'<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
   booking:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 11h18"/>',
   joblist:'<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="11" rx="1.5"/><rect x="16" y="4" width="5" height="14" rx="1.5"/>',
   lead:'<path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/>',
@@ -365,6 +366,7 @@ const ICONS = {
 };
 export const PAGES = [
   {id:'dashboard',  label:'Dashboard', title:'Dashboard'},
+  {id:'ads',        label:'Meta Ads',  title:'Meta Ads'},
   {id:'booking',    label:'Booking',   title:'Booking'},
   {id:'joblist',    label:'Joblist',   title:'Joblist'},
   {id:'lead',       label:'Lead',      title:'Lead'},

@@ -4,6 +4,7 @@
    ===================================================================== */
 import { initAuth, initShell, $, S } from './core.js';
 import './pages/dashboard.js';
+import './pages/ads.js';
 import './pages/booking.js';
 import './pages/joblist.js';
 import './pages/lead.js';

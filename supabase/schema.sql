@@ -60,6 +60,20 @@ create table if not exists public.package_costs (
 );
 
 -- ---------------------------------------------------------------------
+-- META ADS — koneksi Marketing API untuk halaman Meta Ads (satu baris).
+-- Token tidak pernah tampil ke pelanggan; hanya admin yang bisa membaca.
+-- ---------------------------------------------------------------------
+create table if not exists public.meta_ads_config (
+  id            integer primary key default 1 check (id = 1),
+  ad_account_id text not null check (ad_account_id ~ '^act_[0-9]+$'),
+  access_token  text not null,
+  result_type   text not null default 'auto'
+                check (result_type in ('auto','messaging','lead','purchase','lpv','link')),
+  target_cpr    bigint check (target_cpr is null or target_cpr >= 0),
+  updated_at    timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
 -- FREELANCER
 -- ---------------------------------------------------------------------
 create table if not exists public.freelancers (
@@ -391,7 +405,7 @@ from public.leads l;
 do $$
 declare t text;
 begin
-  foreach t in array array['admins','package_costs','freelancers','payments','crew_fees','transactions','leads','clients'] loop
+  foreach t in array array['admins','package_costs','meta_ads_config','freelancers','payments','crew_fees','transactions','leads','clients'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon', t);
     execute format('drop policy if exists "admin penuh" on public.%I', t);
